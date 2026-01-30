@@ -27,20 +27,30 @@ app.use(helmet({
   },
 }))
 
-// CORS - only allow requests from your domain in production
-const allowedOrigins = process.env.NODE_ENV === 'production'
-  ? [process.env.FRONTEND_URL || 'https://www.trytabie.com']
-  : ['http://localhost:5173', 'http://localhost:3000']
+// CORS configuration
+const allowedOrigins = [
+  'https://www.trytabie.com',
+  'https://trytabie.com',
+  'https://tabie.onrender.com',
+  'http://localhost:5173',
+  'http://localhost:3000'
+]
+
+// Add custom FRONTEND_URL if set
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+  allowedOrigins.push(process.env.FRONTEND_URL)
+}
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc) in development
-    if (!origin && process.env.NODE_ENV !== 'production') {
+    // Allow requests with no origin (same-origin, mobile apps, curl, Postman)
+    if (!origin) {
       return callback(null, true)
     }
     if (allowedOrigins.includes(origin)) {
       return callback(null, true)
     }
+    console.log('CORS blocked origin:', origin)
     callback(new Error('Not allowed by CORS'))
   },
   credentials: true
