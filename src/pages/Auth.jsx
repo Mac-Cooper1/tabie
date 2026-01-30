@@ -1,11 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { ArrowLeft, Phone, User, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 export default function Auth() {
   const navigate = useNavigate()
-  const { signUp, signIn, error, clearError, loading } = useAuthStore()
+  const { signUp, signIn, error, clearError, loading, isAuthenticated } = useAuthStore()
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/home', { replace: true })
+    }
+  }, [isAuthenticated, navigate])
 
   const [mode, setMode] = useState('login') // login, signup
   const [email, setEmail] = useState('')
@@ -54,9 +61,8 @@ export default function Auth() {
       result = await signIn(email, password)
     }
 
-    if (result.success) {
-      navigate('/home')
-    }
+    // Navigation is handled by useEffect when isAuthenticated becomes true
+    // This prevents race condition with Firebase auth state
   }
 
   // Get friendly error message
