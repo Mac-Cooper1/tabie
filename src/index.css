@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #1C1917;
+  color: #FFFFFF;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Mobile container */
+.mobile-container {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #44403C;
+  border-radius: 2px;
+}
+
+/* Gradient text - wine red gradient */
+.gradient-text {
+  background: linear-gradient(135deg, #722F37 0%, #8B3A44 50%, #722F37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects */
+.glow-wine {
+  box-shadow: 0 0 30px rgba(114, 47, 55, 0.4);
+}
+
+/* Glass morphism - dark version */
+.glass {
+  background: rgba(41, 37, 36, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Animated gradient border - wine red */
+.gradient-border {
+  position: relative;
+  background: #292524;
+  border-radius: 16px;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #722F37, #8B3A44, #5A252C, #722F37);
+  background-size: 300% 300%;
+  animation: gradient 8s ease infinite;
+  z-index: -1;
+  opacity: 0.6;
+}
+
+/* Button styles */
+.btn-primary {
+  @apply bg-tabie-primary text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-300;
+  @apply hover:bg-tabie-primary-light hover:scale-105 active:scale-95;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+}
+
+.btn-secondary {
+  @apply bg-tabie-surface border border-tabie-border text-tabie-text font-medium py-3 px-6 rounded-xl transition-all duration-300;
+  @apply hover:bg-tabie-border hover:scale-105 active:scale-95;
+}
+
+/* Input styles - base without horizontal padding so utilities can override */
+.input-field {
+  @apply w-full bg-tabie-surface border border-tabie-border rounded-xl py-3 text-tabie-text placeholder-tabie-muted;
+  @apply focus:outline-none focus:border-tabie-primary focus:ring-1 focus:ring-tabie-primary;
+  @apply transition-all duration-200;
+}
+
+/* Default padding when no icon utilities are used */
+.input-field:not([class*="pl-"]):not([class*="px-"]) {
+  padding-left: 1rem;
+}
+
+.input-field:not([class*="pr-"]):not([class*="px-"]) {
+  padding-right: 1rem;
+}
+
+/* Card styles */
+.card {
+  @apply bg-tabie-card border border-tabie-border rounded-2xl p-4;
+}
+
+/* Person chip colors */
+.chip-red { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; }
+.chip-blue { background: rgba(59, 130, 246, 0.2); border-color: #3b82f6; }
+.chip-green { background: rgba(34, 197, 94, 0.2); border-color: #22c55e; }
+.chip-purple { background: rgba(168, 85, 247, 0.2); border-color: #a855f7; }
+.chip-orange { background: rgba(249, 115, 22, 0.2); border-color: #f97316; }
+.chip-pink { background: rgba(236, 72, 153, 0.2); border-color: #ec4899; }
+.chip-cyan { background: rgba(6, 182, 212, 0.2); border-color: #06b6d4; }
+.chip-yellow { background: rgba(234, 179, 8, 0.2); border-color: #eab308; }
+.chip-wine { background: rgba(114, 47, 55, 0.2); border-color: #722F37; }
+
+/* Noise overlay - subtle texture */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.02;
+  z-index: 100;
+}
+
+/* Safe area padding for iOS */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}

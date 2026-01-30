@@ -1,0 +1,11 @@
+<svg width="160" height="40" viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg">
+  <!-- Receipt icon -->
+  <path d="M4 4C4 2 6 0 8 0H28C30 0 32 2 32 4V36C32 38 30 40 28 40L24 36L20 40L16 36L12 40L8 36L4 40V4Z" fill="#722F37"/>
+  <rect x="9" y="8" width="18" height="3" rx="1" fill="white"/>
+  <rect x="9" y="14" width="14" height="3" rx="1" fill="white"/>
+  <rect x="9" y="20" width="16" height="3" rx="1" fill="white"/>
+  <rect x="9" y="26" width="10" height="3" rx="1" fill="white"/>
+
+  <!-- Wordmark -->
+  <text x="44" y="30" font-family="DM Sans, sans-serif" font-size="32" font-weight="700" fill="white">Tabie</text>
+</svg>
