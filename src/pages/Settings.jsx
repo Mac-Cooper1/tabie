@@ -357,8 +357,8 @@ export default function Settings() {
         <div className="card bg-tabie-surface/50">
           <h4 className="text-sm font-medium text-tabie-text mb-2">Platform Fees</h4>
           <p className="text-xs text-tabie-muted">
-            Tabie charges a small fee of $0.50 or 1% (whichever is greater, max $2) per payment.
-            Stripe processing fees also apply.
+            Tabie charges a small fee of $0.50 or 2% (whichever is greater, max $2) per payment.
+            Stripe processing fees also apply. Bank (ACH) payments have lower processing fees than cards.
           </p>
         </div>
 

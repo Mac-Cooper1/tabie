@@ -12,6 +12,7 @@ import Checkout from './pages/Checkout'
 import JoinTab from './pages/JoinTab'
 import GuestItemSelection from './pages/GuestItemSelection'
 import GuestCheckout from './pages/GuestCheckout'
+import PaymentSuccess from './pages/PaymentSuccess'
 import Settings from './pages/Settings'
 
 // Protected route wrapper
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/tab/:tabId/select" element={<GuestItemSelection />} />
         <Route path="/checkout/:tabId" element={<Checkout />} />
         <Route path="/pay/:tabId/:participantId" element={<GuestCheckout />} />
+        <Route path="/pay/success" element={<PaymentSuccess />} />
 
         {/* Protected routes for authenticated users */}
         <Route

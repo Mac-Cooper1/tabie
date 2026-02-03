@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { loadStripe } from '@stripe/stripe-js'
-import {
-  Elements,
-  PaymentElement,
-  useStripe,
-  useElements
-} from '@stripe/react-stripe-js'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
 import { getDoc, doc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -14,124 +7,30 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  CheckCircle2,
+  Building2,
   CreditCard,
-  Receipt
+  Receipt,
+  ChevronRight,
+  Info
 } from 'lucide-react'
 
-// Stripe promise - will be initialized when config is fetched
-let stripePromise = null
-
-const getStripePromise = async () => {
-  if (!stripePromise) {
-    try {
-      const response = await fetch('/api/stripe/config')
-      const { publishableKey } = await response.json()
-      stripePromise = loadStripe(publishableKey)
-    } catch (err) {
-      console.error('Failed to load Stripe config:', err)
-    }
-  }
-  return stripePromise
-}
-
-// Payment Form Component
-function PaymentForm({ amount, onSuccess, onError }) {
-  const stripe = useStripe()
-  const elements = useElements()
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!stripe || !elements) {
-      return
-    }
-
-    setIsProcessing(true)
-    setErrorMessage('')
-
-    try {
-      const { error, paymentIntent } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: window.location.href,
-        },
-        redirect: 'if_required',
-      })
-
-      if (error) {
-        setErrorMessage(error.message)
-        onError?.(error)
-      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        onSuccess?.(paymentIntent)
-      }
-    } catch (err) {
-      setErrorMessage('An unexpected error occurred.')
-      onError?.(err)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="card p-4">
-        <PaymentElement
-          options={{
-            layout: 'tabs',
-          }}
-        />
-      </div>
-
-      {errorMessage && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3">
-          <p className="text-red-400 text-sm">{errorMessage}</p>
-        </div>
-      )}
-
-      <button
-        type="submit"
-        disabled={!stripe || isProcessing}
-        className="w-full btn-primary flex items-center justify-center gap-2"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <CreditCard className="w-5 h-5" />
-            Pay ${amount.toFixed(2)}
-          </>
-        )}
-      </button>
-
-      <p className="text-xs text-tabie-muted text-center">
-        Payments securely processed by Stripe
-      </p>
-    </form>
-  )
-}
-
-// Main GuestCheckout Component
 export default function GuestCheckout() {
   const { tabId, participantId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { tab, loading: tabLoading, error: tabError, getPersonTotal } = useTab(tabId)
 
-  const [stripePromise, setStripePromise] = useState(null)
-  const [clientSecret, setClientSecret] = useState('')
-  const [paymentStatus, setPaymentStatus] = useState('idle') // idle, loading, ready, success, error
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [tabAdmin, setTabAdmin] = useState(null)
+  const [showFeeInfo, setShowFeeInfo] = useState(false)
 
-  // Load Stripe
+  // Check if payment was cancelled
   useEffect(() => {
-    getStripePromise().then(setStripePromise)
-  }, [])
+    if (searchParams.get('cancelled') === 'true') {
+      setErrorMessage('Payment was cancelled. You can try again when ready.')
+    }
+  }, [searchParams])
 
   // Fetch tab admin's Stripe Connect info
   useEffect(() => {
@@ -156,62 +55,50 @@ export default function GuestCheckout() {
     fetchTabAdmin()
   }, [tab?.createdBy])
 
-  // Create payment intent when we have all the info
-  useEffect(() => {
-    async function createPaymentIntent() {
-      if (!tab || !participantId || paymentStatus !== 'idle') return
+  const handlePayment = async (paymentMethod) => {
+    if (!tab || !participantId || !tabAdmin?.stripeConnectId) return
 
-      const participant = tab.people?.find(p => p.id === participantId)
-      if (!participant) return
+    const participant = tab.people?.find(p => p.id === participantId)
+    if (!participant) return
 
-      const amount = getPersonTotal(participantId)
-      if (amount < 0.50) {
-        setErrorMessage('Minimum payment amount is $0.50')
-        setPaymentStatus('error')
-        return
-      }
+    const amount = getPersonTotal(participantId)
+    if (amount < 0.50) {
+      setErrorMessage('Minimum payment amount is $0.50')
+      return
+    }
 
-      setPaymentStatus('loading')
+    setIsRedirecting(true)
+    setErrorMessage('')
 
-      try {
-        const response = await fetch('/api/stripe/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount,
-            tabId,
-            participantId,
-            participantName: participant.name,
-            connectedAccountId: tabAdmin?.stripeConnectId || null
-          })
+    try {
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          tabId,
+          participantId,
+          participantName: participant.name,
+          connectedAccountId: tabAdmin.stripeConnectId,
+          paymentMethod, // 'bank' or 'card'
+          restaurantName: tab.restaurantName
         })
+      })
 
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to create payment')
-        }
-
-        const data = await response.json()
-        setClientSecret(data.clientSecret)
-        setPaymentStatus('ready')
-      } catch (err) {
-        console.error('Error creating payment intent:', err)
-        setErrorMessage(err.message)
-        setPaymentStatus('error')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create checkout session')
       }
+
+      const data = await response.json()
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url
+    } catch (err) {
+      console.error('Error creating checkout session:', err)
+      setErrorMessage(err.message)
+      setIsRedirecting(false)
     }
-
-    if (tabAdmin !== null) {
-      createPaymentIntent()
-    }
-  }, [tab, participantId, tabAdmin, getPersonTotal, tabId, paymentStatus])
-
-  const handlePaymentSuccess = () => {
-    setPaymentStatus('success')
-  }
-
-  const handlePaymentError = (error) => {
-    console.error('Payment error:', error)
   }
 
   // Loading state
@@ -292,35 +179,14 @@ export default function GuestCheckout() {
     myTipShare = (tab.tip || 0) * proportion
   }
 
-  // Success state
-  if (paymentStatus === 'success') {
-    return (
-      <div className="min-h-screen bg-tabie-bg flex items-center justify-center px-6">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-green-500" />
-          </div>
-          <h1 className="text-2xl font-bold text-tabie-text mb-2">Payment Successful!</h1>
-          <p className="text-tabie-muted mb-2">
-            You paid ${myTotal.toFixed(2)} for your share at
-          </p>
-          <p className="text-tabie-text font-semibold mb-6">{tab.restaurantName || 'the restaurant'}</p>
-          <p className="text-sm text-tabie-muted mb-8">
-            The tab organizer has been notified.
-          </p>
-          <button
-            onClick={() => navigate('/')}
-            className="btn-secondary"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   // Check if tab admin can receive payments
   const canAcceptPayments = tabAdmin?.stripeConnectOnboarded
+
+  // Fee calculations for display
+  const amountInCents = Math.round(myTotal * 100)
+  const achFee = Math.round(amountInCents * 0.008) // 0.8% capped at $5
+  const achFeeCapped = Math.min(achFee, 500)
+  const cardFee = Math.round(amountInCents * 0.029) + 30 // 2.9% + 30¢
 
   return (
     <div className="min-h-screen bg-tabie-bg pb-8">
@@ -340,10 +206,25 @@ export default function GuestCheckout() {
       </div>
 
       <div className="px-6 py-6 space-y-6">
+        {/* Error Message */}
+        {errorMessage && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+              <p className="text-red-300 text-sm">{errorMessage}</p>
+            </div>
+          </div>
+        )}
+
         {/* Total Card */}
         <div className="gradient-border p-6 rounded-2xl text-center">
           <p className="text-tabie-muted mb-2">Your Total</p>
           <p className="text-4xl font-bold font-mono text-tabie-text">${myTotal.toFixed(2)}</p>
+          {tabAdmin?.name && (
+            <p className="text-sm text-tabie-muted mt-2">
+              Pay to {tabAdmin.name}
+            </p>
+          )}
         </div>
 
         {/* Items Breakdown */}
@@ -423,51 +304,93 @@ export default function GuestCheckout() {
               Please pay them directly.
             </p>
           </div>
-        ) : paymentStatus === 'loading' ? (
+        ) : isRedirecting ? (
           <div className="card text-center py-8">
             <Loader2 className="w-8 h-8 text-tabie-primary animate-spin mx-auto mb-4" />
-            <p className="text-tabie-muted">Setting up payment...</p>
+            <p className="text-tabie-muted">Redirecting to secure checkout...</p>
           </div>
-        ) : paymentStatus === 'error' ? (
-          <div className="card text-center py-8">
-            <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-            <h3 className="font-semibold text-tabie-text mb-2">Payment Error</h3>
-            <p className="text-tabie-muted text-sm mb-4">{errorMessage}</p>
-            <button
-              onClick={() => setPaymentStatus('idle')}
-              className="btn-secondary"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : stripePromise && clientSecret ? (
-          <Elements
-            stripe={stripePromise}
-            options={{
-              clientSecret,
-              appearance: {
-                theme: 'night',
-                variables: {
-                  colorPrimary: '#722F37',
-                  colorBackground: '#1a1a1a',
-                  colorText: '#ffffff',
-                  colorDanger: '#ef4444',
-                  fontFamily: 'system-ui, sans-serif',
-                  borderRadius: '12px',
-                },
-              },
-            }}
-          >
-            <PaymentForm
-              amount={myTotal}
-              onSuccess={handlePaymentSuccess}
-              onError={handlePaymentError}
-            />
-          </Elements>
         ) : (
-          <div className="card text-center py-8">
-            <Loader2 className="w-8 h-8 text-tabie-primary animate-spin mx-auto mb-4" />
-            <p className="text-tabie-muted">Loading payment form...</p>
+          <div className="space-y-3">
+            {/* Bank Payment - Primary Option */}
+            <button
+              onClick={() => handlePayment('bank')}
+              className="w-full card hover:border-green-500/50 transition-colors group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-semibold text-tabie-text">Pay with Bank</h4>
+                    <p className="text-sm text-green-400">Recommended - Lower fees</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-tabie-muted group-hover:text-tabie-text transition-colors" />
+              </div>
+            </button>
+
+            {/* Card Payment - Secondary Option */}
+            <button
+              onClick={() => handlePayment('card')}
+              className="w-full card hover:border-tabie-primary/50 transition-colors group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-tabie-primary/20 rounded-xl flex items-center justify-center">
+                    <CreditCard className="w-6 h-6 text-tabie-primary" />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="font-semibold text-tabie-text">Pay with Card</h4>
+                    <p className="text-sm text-tabie-muted">Instant payment</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-tabie-muted group-hover:text-tabie-text transition-colors" />
+              </div>
+            </button>
+
+            {/* Fee Info Toggle */}
+            <button
+              onClick={() => setShowFeeInfo(!showFeeInfo)}
+              className="w-full flex items-center justify-center gap-2 text-tabie-muted text-sm hover:text-tabie-text transition-colors py-2"
+            >
+              <Info className="w-4 h-4" />
+              {showFeeInfo ? 'Hide fee comparison' : 'Compare payment fees'}
+            </button>
+
+            {/* Fee Comparison */}
+            {showFeeInfo && (
+              <div className="card bg-tabie-surface/50 text-sm">
+                <h4 className="font-medium text-tabie-text mb-3">Fee Comparison for ${myTotal.toFixed(2)}</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-green-500" />
+                      <span className="text-tabie-muted">Bank (ACH)</span>
+                    </div>
+                    <span className="text-green-400 font-mono">
+                      ${(achFeeCapped / 100).toFixed(2)} fee
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-tabie-primary" />
+                      <span className="text-tabie-muted">Card</span>
+                    </div>
+                    <span className="text-tabie-muted font-mono">
+                      ${(cardFee / 100).toFixed(2)} fee
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-tabie-muted mt-3">
+                  Bank payments take 2-3 business days to process. Card payments are instant.
+                </p>
+              </div>
+            )}
+
+            <p className="text-xs text-tabie-muted text-center pt-2">
+              Payments securely processed by Stripe
+            </p>
           </div>
         )}
       </div>
