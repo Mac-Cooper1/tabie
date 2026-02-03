@@ -11,13 +11,13 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://trytabie.com'
 
 /**
  * Calculate platform fee for Tabie
- * Flat $0.50 OR 1% (whichever is greater), capped at $2
+ * Flat $0.50 OR 2% (whichever is greater), capped at $2
  * @param {number} amountInCents - Payment amount in cents
  * @returns {number} - Fee in cents
  */
 function calculatePlatformFee(amountInCents) {
   const flatFee = 50 // $0.50
-  const percentFee = Math.round(amountInCents * 0.01) // 1%
+  const percentFee = Math.round(amountInCents * 0.02) // 2%
   const fee = Math.max(flatFee, percentFee)
   return Math.min(fee, 200) // Cap at $2
 }
@@ -206,34 +206,71 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   // Handle the event
   switch (event.type) {
-    case 'payment_intent.succeeded':
+    case 'checkout.session.completed': {
+      // Payment completed - for card payments this is instant
+      // For ACH, this fires when the session is created but payment is still pending
+      const session = event.data.object
+      console.log('Checkout session completed:', session.id)
+      console.log('Payment status:', session.payment_status)
+      console.log('Metadata:', session.metadata)
+
+      if (session.payment_status === 'paid') {
+        // Card payment - instant confirmation
+        console.log('Payment confirmed (card):', session.amount_total / 100)
+      } else if (session.payment_status === 'unpaid') {
+        // ACH payment - still processing (takes 2-4 business days)
+        console.log('ACH payment initiated, pending bank confirmation')
+      }
+      break
+    }
+
+    case 'checkout.session.async_payment_succeeded': {
+      // ACH payment cleared successfully (2-4 business days after initiation)
+      const session = event.data.object
+      console.log('ACH payment succeeded:', session.id)
+      console.log('Amount:', session.amount_total / 100)
+      console.log('Metadata:', session.metadata)
+      // Update Firebase to mark payment as complete
+      break
+    }
+
+    case 'checkout.session.async_payment_failed': {
+      // ACH payment failed (insufficient funds, account closed, etc.)
+      const session = event.data.object
+      console.log('ACH payment failed:', session.id)
+      console.log('Metadata:', session.metadata)
+      // Update Firebase to mark payment as failed, notify user
+      break
+    }
+
+    case 'payment_intent.succeeded': {
       const paymentIntent = event.data.object
       console.log('Payment succeeded:', paymentIntent.id)
       console.log('Metadata:', paymentIntent.metadata)
-      // The payment went to the connected account via transfer_data
-      // You can update Firebase here using Admin SDK if needed
       break
+    }
 
-    case 'payment_intent.payment_failed':
+    case 'payment_intent.payment_failed': {
       const failedPayment = event.data.object
       console.log('Payment failed:', failedPayment.id, failedPayment.last_payment_error?.message)
       break
+    }
 
-    case 'account.updated':
+    case 'account.updated': {
       // Handle Connect account updates (onboarding completion)
       const account = event.data.object
       console.log('Account updated:', account.id)
       console.log('Charges enabled:', account.charges_enabled)
       console.log('Payouts enabled:', account.payouts_enabled)
-      // You can update Firebase here to mark user as onboarded
-      // This would require Firebase Admin SDK
       break
+    }
 
-    case 'transfer.created':
+    case 'transfer.created': {
       // A transfer to a connected account was created
       const transfer = event.data.object
       console.log('Transfer created:', transfer.id, 'to', transfer.destination, 'amount:', transfer.amount)
       break
+    }
 
     default:
       console.log(`Unhandled event type: ${event.type}`)
@@ -313,6 +350,143 @@ router.post('/create-payment-intent', express.json(), async (req, res) => {
   } catch (err) {
     console.error('Error creating payment intent:', err)
     res.status(500).json({ error: 'Failed to create payment', details: err.message })
+  }
+})
+
+/**
+ * Create a Checkout Session for payment with ACH (bank) or card
+ * POST /api/stripe/create-checkout-session
+ */
+router.post('/create-checkout-session', express.json(), async (req, res) => {
+  try {
+    const {
+      amount,
+      tabId,
+      participantId,
+      participantName,
+      connectedAccountId,
+      paymentMethod, // 'bank' or 'card'
+      restaurantName
+    } = req.body
+
+    // Validate required fields
+    if (!amount || !tabId || !participantId || !connectedAccountId) {
+      return res.status(400).json({
+        error: 'Missing required fields: amount, tabId, participantId, connectedAccountId'
+      })
+    }
+
+    // Validate amount
+    if (typeof amount !== 'number' || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' })
+    }
+
+    // Minimum $0.50 for Stripe
+    if (amount < 0.50) {
+      return res.status(400).json({ error: 'Minimum payment amount is $0.50' })
+    }
+
+    // Convert to cents
+    const amountInCents = Math.round(amount * 100)
+    const platformFee = calculatePlatformFee(amountInCents)
+
+    // Determine payment methods based on preference
+    // ACH (us_bank_account) has lower fees: 0.8% capped at $5
+    // Card has higher fees: 2.9% + 30¢
+    const paymentMethodTypes = paymentMethod === 'bank'
+      ? ['us_bank_account']
+      : ['card']
+
+    // Build checkout session options
+    const sessionOptions = {
+      payment_method_types: paymentMethodTypes,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: restaurantName ? `Your share at ${restaurantName}` : 'Bill Share',
+              description: `Payment for ${participantName || 'Guest'}`
+            },
+            unit_amount: amountInCents
+          },
+          quantity: 1
+        }
+      ],
+      mode: 'payment',
+      success_url: `${FRONTEND_URL}/pay/success?session_id={CHECKOUT_SESSION_ID}&tab_id=${tabId}&participant_id=${participantId}`,
+      cancel_url: `${FRONTEND_URL}/pay/${tabId}/${participantId}?cancelled=true`,
+      metadata: {
+        tabId,
+        participantId,
+        participantName: participantName || 'Guest',
+        paymentMethod: paymentMethod || 'card',
+        platformFee: platformFee.toString()
+      },
+      // Stripe Connect - send funds to the Tab Admin
+      payment_intent_data: {
+        application_fee_amount: platformFee,
+        transfer_data: {
+          destination: connectedAccountId
+        },
+        metadata: {
+          tabId,
+          participantId,
+          participantName: participantName || 'Guest'
+        }
+      }
+    }
+
+    // For ACH payments, configure additional options
+    if (paymentMethod === 'bank') {
+      sessionOptions.payment_method_options = {
+        us_bank_account: {
+          financial_connections: {
+            permissions: ['payment_method']
+          },
+          verification_method: 'instant'
+        }
+      }
+    }
+
+    console.log(`Creating checkout session: $${amount} via ${paymentMethod || 'card'} to ${connectedAccountId}, fee: $${platformFee / 100}`)
+
+    const session = await stripe.checkout.sessions.create(sessionOptions)
+
+    res.json({
+      sessionId: session.id,
+      url: session.url,
+      amount: amountInCents,
+      platformFee,
+      paymentMethod: paymentMethod || 'card'
+    })
+  } catch (err) {
+    console.error('Error creating checkout session:', err)
+    res.status(500).json({ error: 'Failed to create checkout session', details: err.message })
+  }
+})
+
+/**
+ * Retrieve checkout session status
+ * GET /api/stripe/checkout-session/:sessionId
+ */
+router.get('/checkout-session/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId)
+
+    res.json({
+      id: session.id,
+      status: session.status,
+      paymentStatus: session.payment_status,
+      amountTotal: session.amount_total,
+      metadata: session.metadata,
+      customerEmail: session.customer_details?.email
+    })
+  } catch (err) {
+    console.error('Error retrieving checkout session:', err)
+    res.status(500).json({ error: 'Failed to retrieve session', details: err.message })
   }
 })
 
