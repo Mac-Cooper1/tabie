@@ -9,7 +9,7 @@ import {
   Clock,
   CheckCircle,
   ChevronRight,
-  LogOut,
+  Settings,
   Trash2,
   Link
 } from 'lucide-react'
@@ -17,7 +17,6 @@ import {
 export default function Home() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const { tabs, setCurrentTab, createTab, deleteTab } = useBillStore()
 
   const [activeFilter, setActiveFilter] = useState('active')
@@ -40,11 +39,6 @@ export default function Home() {
       // Tab wasn't published yet - continue setup
       navigate('/invite-people')
     }
-  }
-
-  const handleLogout = () => {
-    logout()
-    navigate('/')
   }
 
   const formatDate = (dateString) => {
@@ -78,10 +72,10 @@ export default function Home() {
             <p className="text-tabie-muted text-sm">Ready to split some bills?</p>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={() => navigate('/settings')}
             className="w-10 h-10 rounded-full bg-tabie-surface flex items-center justify-center text-tabie-muted hover:text-tabie-text transition-colors"
           >
-            <LogOut className="w-5 h-5" />
+            <Settings className="w-5 h-5" />
           </button>
         </div>
 

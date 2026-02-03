@@ -4,6 +4,39 @@ import { useBillStore } from '../stores/billStore'
 import { scanReceipt, hasMindeeApiKey } from '../services/ocr'
 import { ArrowLeft, Camera, Upload, Image, Loader2, AlertCircle } from 'lucide-react'
 
+// Compress image to ensure it fits in Firestore (max ~700KB to be safe)
+const compressImage = (file, maxWidth = 1200, quality = 0.7) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new window.Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+
+        // Scale down if too wide
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width
+          width = maxWidth
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+
+        // Convert to compressed JPEG
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality)
+        resolve(compressedBase64)
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function ScanBill() {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
@@ -19,10 +52,15 @@ export default function ScanBill() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Show preview
-    const reader = new FileReader()
-    reader.onload = (e) => setPreview(e.target?.result)
-    reader.readAsDataURL(file)
+    // Compress and show preview
+    const compressedImage = await compressImage(file)
+    setPreview(compressedImage)
+
+    // Save the compressed image to the tab immediately (so we never lose it)
+    if (currentTab?.id) {
+      console.log('Saving receipt image to tab...')
+      updateCurrentTab({ receiptImage: compressedImage })
+    }
 
     await processReceipt(file)
   }
@@ -32,6 +70,7 @@ export default function ScanBill() {
     setError(null)
 
     try {
+      // Run OCR on the image
       const result = await scanReceipt(file)
 
       if (result.success) {
@@ -67,10 +106,14 @@ export default function ScanBill() {
   const handleRetry = () => {
     setPreview(null)
     setError(null)
+    // Clear the saved image too
+    if (currentTab?.id) {
+      updateCurrentTab({ receiptImage: null })
+    }
   }
 
   const handleSkip = () => {
-    // Go to invite people with no items (user will add manually later)
+    // Image is already saved when captured, just navigate
     navigate('/invite-people')
   }
 

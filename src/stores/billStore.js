@@ -39,6 +39,7 @@ export const useBillStore = create(
           tipPercentage: 20,
           splitTaxTipMethod: 'equal', // equal, proportional
           createdBy: get().currentUserId,
+          receiptImage: null, // Base64 encoded receipt image
         }
         
         set((state) => ({
@@ -418,7 +419,8 @@ export const useBillStore = create(
             tipPercentage: tab.tipPercentage,
             splitTaxTipMethod: tab.splitTaxTipMethod,
             subtotal: tab.subtotal,
-            status: tab.status
+            status: tab.status,
+            receiptImage: tab.receiptImage || null
           })
         } catch (error) {
           console.error('Error syncing to Firestore:', error)

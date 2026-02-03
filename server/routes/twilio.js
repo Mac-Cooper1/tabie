@@ -78,10 +78,10 @@ router.post('/send-invite', async (req, res) => {
   }
 })
 
-// Send payment reminder
+// Send payment reminder with direct payment link
 router.post('/send-reminder', async (req, res) => {
   try {
-    const { phoneNumber, participantName, amount, tabId, organizerName } = req.body
+    const { phoneNumber, participantName, participantId, amount, tabId, organizerName } = req.body
 
     if (!phoneNumber || !amount || !tabId) {
       return res.status(400).json({ error: 'Missing required fields' })
@@ -96,7 +96,10 @@ router.post('/send-reminder', async (req, res) => {
     const fromNumber = process.env.TWILIO_PHONE_NUMBER
 
     const baseUrl = process.env.FRONTEND_URL || 'https://www.trytabie.com'
-    const payUrl = `${baseUrl}/tab/${tabId}/checkout`
+    // Use direct payment URL if participantId is provided
+    const payUrl = participantId
+      ? `${baseUrl}/pay/${tabId}/${participantId}`
+      : `${baseUrl}/checkout/${tabId}`
 
     const name = participantName || 'Hey'
     const organizer = organizerName || 'The organizer'
@@ -115,6 +118,58 @@ router.post('/send-reminder', async (req, res) => {
   } catch (err) {
     console.error('Error sending reminder:', err)
     res.status(500).json({ error: 'Failed to send reminder' })
+  }
+})
+
+// Send direct payment link
+router.post('/send-payment-link', async (req, res) => {
+  try {
+    const { phoneNumber, participantName, participantId, amount, tabId, restaurantName } = req.body
+
+    if (!phoneNumber || !amount || !tabId || !participantId) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    const cleanedNumber = phoneNumber.replace(/\D/g, '')
+    const formattedNumber = cleanedNumber.length === 10
+      ? `+1${cleanedNumber}`
+      : `+${cleanedNumber}`
+
+    const client = getTwilioClient()
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER
+
+    if (!fromNumber) {
+      return res.status(500).json({ error: 'Twilio phone number not configured' })
+    }
+
+    const baseUrl = process.env.FRONTEND_URL || 'https://www.trytabie.com'
+    const payUrl = `${baseUrl}/pay/${tabId}/${participantId}`
+
+    const name = participantName || 'there'
+    const restaurant = restaurantName || 'your meal'
+    const message = `Hey ${name}! Your share of ${restaurant} is $${amount.toFixed(2)}. Pay securely with Tabie: ${payUrl}`
+
+    const result = await client.messages.create({
+      body: message,
+      from: fromNumber,
+      to: formattedNumber
+    })
+
+    res.json({
+      success: true,
+      messageId: result.sid
+    })
+  } catch (err) {
+    console.error('Error sending payment link:', err)
+
+    if (err.code === 21211) {
+      return res.status(400).json({ error: 'Invalid phone number' })
+    }
+    if (err.code === 21608) {
+      return res.status(400).json({ error: 'Phone number not verified for trial account' })
+    }
+
+    res.status(500).json({ error: 'Failed to send payment link' })
   }
 })
 

@@ -35,7 +35,11 @@ export const useAuthStore = create(
                   name: userData.name || firebaseUser.displayName || '',
                   phone: userData.phone || '',
                   venmo: userData.venmo || '',
-                  createdAt: userData.createdAt || new Date().toISOString()
+                  createdAt: userData.createdAt || new Date().toISOString(),
+                  // Stripe Connect fields
+                  stripeConnectId: userData.stripeConnectId || null,
+                  stripeConnectOnboarded: userData.stripeConnectOnboarded || false,
+                  stripeConnectEmail: userData.stripeConnectEmail || null
                 },
                 loading: false,
                 error: null
@@ -50,7 +54,10 @@ export const useAuthStore = create(
                   name: firebaseUser.displayName || '',
                   phone: '',
                   venmo: '',
-                  createdAt: new Date().toISOString()
+                  createdAt: new Date().toISOString(),
+                  stripeConnectId: null,
+                  stripeConnectOnboarded: false,
+                  stripeConnectEmail: null
                 },
                 loading: false,
                 error: null
@@ -95,7 +102,10 @@ export const useAuthStore = create(
               name,
               phone,
               venmo,
-              createdAt: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              stripeConnectId: null,
+              stripeConnectOnboarded: false,
+              stripeConnectEmail: null
             },
             loading: false,
             error: null

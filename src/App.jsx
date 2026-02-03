@@ -11,6 +11,8 @@ import InvitePeople from './pages/InvitePeople'
 import Checkout from './pages/Checkout'
 import JoinTab from './pages/JoinTab'
 import GuestItemSelection from './pages/GuestItemSelection'
+import GuestCheckout from './pages/GuestCheckout'
+import Settings from './pages/Settings'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -51,6 +53,7 @@ export default function App() {
         <Route path="/join/:tabId" element={<JoinTab />} />
         <Route path="/tab/:tabId/select" element={<GuestItemSelection />} />
         <Route path="/checkout/:tabId" element={<Checkout />} />
+        <Route path="/pay/:tabId/:participantId" element={<GuestCheckout />} />
 
         {/* Protected routes for authenticated users */}
         <Route
@@ -82,6 +85,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <InvitePeople />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />

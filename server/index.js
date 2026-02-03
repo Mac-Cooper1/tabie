@@ -56,8 +56,15 @@ app.use(cors({
   credentials: true
 }))
 
-// Parse JSON for most routes
-app.use(express.json())
+// Parse JSON for most routes, BUT skip the Stripe webhook (needs raw body)
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe/webhook') {
+    // Skip JSON parsing for webhook - it needs raw body for signature verification
+    next()
+  } else {
+    express.json()(req, res, next)
+  }
+})
 
 // API Routes
 app.use('/api/stripe', stripeRoutes)
@@ -90,4 +97,12 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+  console.log('Config check:', {
+    hasStripeSecretKey: !!process.env.STRIPE_SECRET_KEY,
+    hasStripePublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
+    hasStripeWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
+    hasTwilioSid: !!process.env.TWILIO_ACCOUNT_SID,
+    hasTwilioToken: !!process.env.TWILIO_AUTH_TOKEN,
+    frontendUrl: process.env.FRONTEND_URL || '(not set)'
+  })
 })
