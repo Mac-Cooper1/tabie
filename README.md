@@ -121,14 +121,19 @@ The app opens the native SMS app with a pre-filled message. For programmatic SMS
 
 Current implementation uses `sms:` URL scheme which works on mobile devices.
 
+## ✅ Recently Added
+
+- [x] Venmo, Cash App, and PayPal payment deep links
+- [x] Shareable tab links for guests
+- [x] Real-time Firestore sync
+- [x] HEIC image support (iPhone photos)
+
 ## 🔮 Coming Soon
 
-- [ ] Stripe Connect for instant payments
-- [ ] Shareable payment links
-- [ ] Venmo/Cash App integration
 - [ ] Receipt history & analytics
 - [ ] Group/friend management
 - [ ] Push notifications
+- [ ] Payment confirmation tracking
 
 ## 🐛 Troubleshooting
 

@@ -1,13 +1,35 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
+import { claimPayment } from '../services/firestore'
 import {
   ArrowLeft,
   Check,
   Loader2,
   AlertCircle,
-  CreditCard
+  CreditCard,
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react'
+
+// Custom SVG icons for payment apps
+const VenmoIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+    <path d="M19.5 3c.9 1.5 1.3 3 1.3 5 0 5.5-4.7 12.7-8.5 17.7H5.2L2 4.4l6.2-.6 1.8 14.4c1.7-2.8 3.8-7.2 3.8-10.2 0-1.9-.3-3.2-.9-4.2L19.5 3z"/>
+  </svg>
+)
+
+const CashAppIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+    <path d="M23.59 3.47A5.1 5.1 0 0020.47.35C19.22.12 17.69.07 16 .07c-1.69 0-3.22.05-4.47.28A5.1 5.1 0 008.41 3.47c-.23 1.25-.28 2.78-.28 4.47s.05 3.22.28 4.47a5.1 5.1 0 003.12 3.12c1.25.23 2.78.28 4.47.28 1.69 0 3.22-.05 4.47-.28a5.1 5.1 0 003.12-3.12c.23-1.25.28-2.78.28-4.47s-.05-3.22-.28-4.47zM17.5 11.25l-1.5 1.5-2-2-2 2-1.5-1.5 2-2-2-2 1.5-1.5 2 2 2-2 1.5 1.5-2 2 2 2z"/>
+  </svg>
+)
+
+const PayPalIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+    <path d="M7.076 21.337H2.47a.641.641 0 01-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797H9.25c-.497 0-.92.369-.997.858l-.846 5.143-.005.034v.002h-.003l-.323 1.97z"/>
+  </svg>
+)
 
 export default function Checkout() {
   const navigate = useNavigate()
@@ -16,6 +38,12 @@ export default function Checkout() {
 
   // Get current participant from localStorage
   const participantId = localStorage.getItem(`tabie_participant_${tabId}`)
+
+  // Payment state
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   // Redirect if not joined
   useEffect(() => {
@@ -78,9 +106,78 @@ export default function Checkout() {
 
   // Get the organizer (first person)
   const organizer = tab.people?.[0]
+  const adminName = tab.adminPaymentAccounts?.adminName || organizer?.name || 'the organizer'
+
+  // Generate deep link URLs for payment
+  const generatePaymentLinks = () => {
+    if (!tab?.adminPaymentAccounts || !participantId) return {}
+
+    const amount = myTotal
+    const { venmo, cashapp, paypal } = tab.adminPaymentAccounts
+    const restaurantName = tab.restaurantName || 'Bill Split'
+    const guestName = currentParticipant?.name || 'Guest'
+
+    const note = encodeURIComponent(`${restaurantName} - ${guestName} via Tabie`)
+
+    return {
+      venmo: venmo
+        ? `https://venmo.com/${venmo}?txn=pay&amount=${amount.toFixed(2)}&note=${note}&audience=private`
+        : null,
+      cashapp: cashapp
+        ? `https://cash.app/$${cashapp}/${amount.toFixed(2)}`
+        : null,
+      paypal: paypal
+        ? `https://paypal.me/${paypal}/${amount.toFixed(2)}`
+        : null
+    }
+  }
+
+  const paymentLinks = generatePaymentLinks()
+  const hasPaymentMethods = paymentLinks.venmo || paymentLinks.cashapp || paymentLinks.paypal
+
+  const handlePayment = (method) => {
+    const url = paymentLinks[method]
+    if (!url) return
+
+    setSelectedPaymentMethod(method)
+
+    // Open payment link
+    window.open(url, '_blank')
+
+    // Show confirmation after a short delay
+    setTimeout(() => {
+      setShowConfirmation(true)
+    }, 1000)
+  }
+
+  const handleConfirmPayment = async (didPay) => {
+    if (!didPay) {
+      setShowConfirmation(false)
+      setSelectedPaymentMethod(null)
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage('')
+
+    try {
+      // Mark payment as claimed in Firestore
+      await claimPayment(tabId, participantId, selectedPaymentMethod)
+
+      // Navigate to success page
+      navigate(`/pay/success?method=${selectedPaymentMethod}&tab_id=${tabId}&participant_id=${participantId}`)
+    } catch (err) {
+      console.error('Error claiming payment:', err)
+      setErrorMessage('Failed to record payment. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  // Check if current user has already paid
+  const hasPaid = currentParticipant?.paymentStatus === 'claimed' || currentParticipant?.paymentStatus === 'confirmed'
 
   return (
-    <div className="min-h-screen bg-tabie-bg pb-32">
+    <div className="min-h-screen bg-tabie-bg pb-8">
       {/* Header */}
       <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <button
@@ -199,31 +296,178 @@ export default function Checkout() {
           </div>
         )}
 
-        {/* Payment info for non-admin */}
-        {!isAdmin && (
+        {/* Error Message */}
+        {errorMessage && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5" />
+              <p className="text-red-300 text-sm">{errorMessage}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Already Paid Status */}
+        {hasPaid && (
+          <div className="card text-center py-6">
+            <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-green-500" />
+            </div>
+            <h3 className="font-semibold text-tabie-text mb-2">
+              {currentParticipant?.paymentStatus === 'confirmed' ? 'Payment Confirmed!' : 'Payment Pending'}
+            </h3>
+            <p className="text-tabie-muted text-sm">
+              {currentParticipant?.paymentStatus === 'confirmed'
+                ? `Your payment of $${myTotal.toFixed(2)} has been confirmed.`
+                : `Your payment of $${myTotal.toFixed(2)} is awaiting confirmation from ${adminName}.`
+              }
+            </p>
+            {currentParticipant?.paidVia && (
+              <p className="text-xs text-tabie-muted mt-2">
+                Paid via {currentParticipant.paidVia.charAt(0).toUpperCase() + currentParticipant.paidVia.slice(1)}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Payment Section for Non-Admin */}
+        {!isAdmin && !hasPaid && (
+          <>
+            {!hasPaymentMethods ? (
+              <div className="card text-center py-6">
+                <AlertCircle className="w-10 h-10 text-yellow-500 mx-auto mb-4" />
+                <h3 className="font-semibold text-tabie-text mb-2">Payment Not Set Up</h3>
+                <p className="text-tabie-muted text-sm">
+                  The tab organizer hasn't set up payment accounts yet.
+                  Please pay {adminName} directly.
+                </p>
+              </div>
+            ) : showConfirmation ? (
+              // Confirmation Dialog
+              <div className="card text-center py-6">
+                <h3 className="font-semibold text-tabie-text mb-2">Did you complete your payment?</h3>
+                <p className="text-tabie-muted text-sm mb-4">
+                  If you paid ${myTotal.toFixed(2)} via{' '}
+                  {selectedPaymentMethod?.charAt(0).toUpperCase() + selectedPaymentMethod?.slice(1)},
+                  confirm below.
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleConfirmPayment(true)}
+                    disabled={isSubmitting}
+                    className="w-full btn-primary flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Recording...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        Yes, I Paid
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleConfirmPayment(false)}
+                    disabled={isSubmitting}
+                    className="w-full btn-secondary"
+                  >
+                    Not Yet
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Payment Buttons
+              <div className="space-y-3">
+                <p className="text-sm text-tabie-muted text-center">
+                  Tap to pay {adminName}
+                </p>
+
+                {/* Venmo Button */}
+                {paymentLinks.venmo && (
+                  <button
+                    onClick={() => handlePayment('venmo')}
+                    className="w-full bg-[#008CFF] hover:bg-[#0070cc] text-white rounded-xl p-4 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <VenmoIcon />
+                        <div className="text-left">
+                          <p className="font-semibold">Pay with Venmo</p>
+                          <p className="text-sm text-white/80">@{tab.adminPaymentAccounts.venmo}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold">${myTotal.toFixed(2)}</span>
+                        <ExternalLink className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* Cash App Button */}
+                {paymentLinks.cashapp && (
+                  <button
+                    onClick={() => handlePayment('cashapp')}
+                    className="w-full bg-[#00D632] hover:bg-[#00b52a] text-white rounded-xl p-4 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CashAppIcon />
+                        <div className="text-left">
+                          <p className="font-semibold">Pay with Cash App</p>
+                          <p className="text-sm text-white/80">${tab.adminPaymentAccounts.cashapp}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold">${myTotal.toFixed(2)}</span>
+                        <ExternalLink className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* PayPal Button */}
+                {paymentLinks.paypal && (
+                  <button
+                    onClick={() => handlePayment('paypal')}
+                    className="w-full bg-[#003087] hover:bg-[#00256b] text-white rounded-xl p-4 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <PayPalIcon />
+                        <div className="text-left">
+                          <p className="font-semibold">Pay with PayPal</p>
+                          <p className="text-sm text-white/80">paypal.me/{tab.adminPaymentAccounts.paypal}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold">${myTotal.toFixed(2)}</span>
+                        <ExternalLink className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                <p className="text-xs text-tabie-muted text-center pt-2">
+                  Payments are sent directly to {adminName} through their payment app.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Admin: Waiting for payments info */}
+        {isAdmin && (
           <div className="card">
-            <h3 className="font-semibold text-tabie-text mb-3">Pay {organizer?.name || 'Organizer'}</h3>
+            <h3 className="font-semibold text-tabie-text mb-3">Payment Collection</h3>
             <p className="text-sm text-tabie-muted">
-              Payment integration coming soon. For now, please pay the organizer directly.
+              As the organizer, you'll receive payments directly through Venmo, Cash App, or PayPal.
+              Make sure you've set up your payment accounts in Settings.
             </p>
           </div>
         )}
-      </div>
-
-      {/* Bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-tabie-bg/90 backdrop-blur-lg border-t border-tabie-border p-4">
-        <div className="max-w-[430px] mx-auto">
-          <button
-            className="w-full btn-primary flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
-            disabled
-          >
-            <CreditCard className="w-5 h-5" />
-            Pay ${myTotal.toFixed(2)} - Coming Soon
-          </button>
-          <p className="text-xs text-tabie-muted text-center mt-2">
-            Stripe payments coming soon
-          </p>
-        </div>
       </div>
     </div>
   )
