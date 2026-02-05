@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { useAuthStore } from '../stores/authStore'
 import {
   CheckCircle2,
   Loader2,
-  Clock
+  Clock,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react'
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuthStore()
 
   const [loading, setLoading] = useState(true)
   const [tabData, setTabData] = useState(null)
@@ -142,24 +146,67 @@ export default function PaymentSuccess() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3">
-          <button
-            onClick={() => navigate('/')}
-            className="w-full btn-primary"
-          >
-            Done
-          </button>
-
-          {tabId && participantId && (
+        {/* Conversion CTA */}
+        {isAuthenticated ? (
+          // Logged-in user: Go to their tabs
+          <div className="space-y-3">
             <button
-              onClick={() => navigate(`/pay/${tabId}/${participantId}`)}
-              className="w-full btn-secondary"
+              onClick={() => navigate('/home')}
+              className="w-full btn-primary flex items-center justify-center gap-2"
             >
-              View Your Bill
+              Go to My Tabs
+              <ArrowRight className="w-4 h-4" />
             </button>
-          )}
-        </div>
+
+            {tabId && participantId && (
+              <button
+                onClick={() => navigate(`/pay/${tabId}/${participantId}`)}
+                className="w-full btn-secondary"
+              >
+                View Your Bill
+              </button>
+            )}
+          </div>
+        ) : (
+          // Guest: Prompt to sign up
+          <div className="space-y-4">
+            {/* Primary CTA - Sign up */}
+            <div className="bg-gradient-to-br from-tabie-primary/20 to-purple-500/20 border border-tabie-primary/30 rounded-2xl p-5">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Sparkles className="w-5 h-5 text-tabie-primary" />
+                <h3 className="font-semibold text-tabie-text">Your turn to split a bill?</h3>
+              </div>
+              <p className="text-sm text-tabie-muted mb-4">
+                Never do receipt math again. Scan, split, and get paid back in seconds.
+              </p>
+              <button
+                onClick={() => navigate('/auth')}
+                className="w-full btn-primary flex items-center justify-center gap-2"
+              >
+                Start Your Own Tab
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Secondary options */}
+            <div className="flex items-center gap-3">
+              {tabId && participantId && (
+                <button
+                  onClick={() => navigate(`/pay/${tabId}/${participantId}`)}
+                  className="flex-1 btn-secondary text-sm"
+                >
+                  View Bill
+                </button>
+              )}
+              <button
+                onClick={() => navigate('/')}
+                className="flex-1 text-tabie-muted hover:text-tabie-text text-sm py-3 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Footer note */}
         <p className="text-xs text-tabie-muted mt-6">
