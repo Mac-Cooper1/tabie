@@ -34,12 +34,13 @@ export const useAuthStore = create(
                   email: firebaseUser.email,
                   name: userData.name || firebaseUser.displayName || '',
                   phone: userData.phone || '',
-                  venmo: userData.venmo || '',
                   createdAt: userData.createdAt || new Date().toISOString(),
-                  // Stripe Connect fields
-                  stripeConnectId: userData.stripeConnectId || null,
-                  stripeConnectOnboarded: userData.stripeConnectOnboarded || false,
-                  stripeConnectEmail: userData.stripeConnectEmail || null
+                  // Payment accounts for receiving payments (Venmo, Cash App, PayPal)
+                  paymentAccounts: userData.paymentAccounts || {
+                    venmo: userData.venmo || null,  // Migrate old venmo field
+                    cashapp: null,
+                    paypal: null
+                  }
                 },
                 loading: false,
                 error: null
@@ -53,11 +54,12 @@ export const useAuthStore = create(
                   email: firebaseUser.email,
                   name: firebaseUser.displayName || '',
                   phone: '',
-                  venmo: '',
                   createdAt: new Date().toISOString(),
-                  stripeConnectId: null,
-                  stripeConnectOnboarded: false,
-                  stripeConnectEmail: null
+                  paymentAccounts: {
+                    venmo: null,
+                    cashapp: null,
+                    paypal: null
+                  }
                 },
                 loading: false,
                 error: null
@@ -76,7 +78,7 @@ export const useAuthStore = create(
       },
 
       // Sign up with email and password
-      signUp: async (email, password, name, phone = '', venmo = '') => {
+      signUp: async (email, password, name, phone = '') => {
         set({ loading: true, error: null })
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password)
@@ -90,7 +92,11 @@ export const useAuthStore = create(
             name,
             email,
             phone,
-            venmo,
+            paymentAccounts: {
+              venmo: null,
+              cashapp: null,
+              paypal: null
+            },
             createdAt: new Date().toISOString()
           })
 
@@ -101,11 +107,12 @@ export const useAuthStore = create(
               email,
               name,
               phone,
-              venmo,
               createdAt: new Date().toISOString(),
-              stripeConnectId: null,
-              stripeConnectOnboarded: false,
-              stripeConnectEmail: null
+              paymentAccounts: {
+                venmo: null,
+                cashapp: null,
+                paypal: null
+              }
             },
             loading: false,
             error: null

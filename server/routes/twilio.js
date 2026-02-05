@@ -103,7 +103,7 @@ router.post('/send-reminder', async (req, res) => {
 
     const name = participantName || 'Hey'
     const organizer = organizerName || 'The organizer'
-    const message = `${name}, ${organizer} is waiting for your $${amount.toFixed(2)} payment on Tabie. Pay now: ${payUrl}`
+    const message = `${name}, ${organizer} is waiting for your $${amount.toFixed(2)} payment. Pay via Venmo, Cash App, or PayPal: ${payUrl}`
 
     const result = await client.messages.create({
       body: message,
@@ -124,7 +124,7 @@ router.post('/send-reminder', async (req, res) => {
 // Send direct payment link
 router.post('/send-payment-link', async (req, res) => {
   try {
-    const { phoneNumber, participantName, participantId, amount, tabId, restaurantName } = req.body
+    const { phoneNumber, participantName, participantId, amount, tabId, restaurantName, organizerName } = req.body
 
     if (!phoneNumber || !amount || !tabId || !participantId) {
       return res.status(400).json({ error: 'Missing required fields' })
@@ -147,7 +147,8 @@ router.post('/send-payment-link', async (req, res) => {
 
     const name = participantName || 'there'
     const restaurant = restaurantName || 'your meal'
-    const message = `Hey ${name}! Your share of ${restaurant} is $${amount.toFixed(2)}. Pay securely with Tabie: ${payUrl}`
+    const organizer = organizerName || 'the organizer'
+    const message = `Hey ${name}! Your share of ${restaurant} is $${amount.toFixed(2)}. Pay ${organizer} via Venmo, Cash App, or PayPal: ${payUrl}`
 
     const result = await client.messages.create({
       body: message,

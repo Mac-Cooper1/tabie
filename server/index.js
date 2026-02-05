@@ -3,8 +3,8 @@ import cors from 'cors'
 import helmet from 'helmet'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import stripeRoutes from './routes/stripe.js'
 import twilioRoutes from './routes/twilio.js'
+// Stripe routes deprecated - using deep link payments (Venmo, Cash App, PayPal)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -17,12 +17,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://*.firebaseio.com", "https://*.googleapis.com", "wss://*.firebaseio.com", "https://api.stripe.com", "https://api-v2.mindee.net", "https://*.mindee.net"],
-      frameSrc: ["'self'", "https://js.stripe.com"],
+      connectSrc: ["'self'", "https://*.firebaseio.com", "https://*.googleapis.com", "wss://*.firebaseio.com", "https://api-v2.mindee.net", "https://*.mindee.net"],
+      frameSrc: ["'self'"],
     },
   },
 }))
@@ -56,19 +56,19 @@ app.use(cors({
   credentials: true
 }))
 
-// Parse JSON for most routes, BUT skip the Stripe webhook (needs raw body)
-app.use((req, res, next) => {
-  if (req.originalUrl === '/api/stripe/webhook') {
-    // Skip JSON parsing for webhook - it needs raw body for signature verification
-    next()
-  } else {
-    express.json()(req, res, next)
-  }
-})
+// Parse JSON for all routes
+app.use(express.json())
 
 // API Routes
-app.use('/api/stripe', stripeRoutes)
 app.use('/api/twilio', twilioRoutes)
+
+// Deprecated Stripe routes - return 410 Gone
+app.use('/api/stripe', (req, res) => {
+  res.status(410).json({
+    error: 'Stripe payments deprecated',
+    message: 'Payments are now handled via Venmo, Cash App, and PayPal deep links'
+  })
+})
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -98,11 +98,9 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log('Config check:', {
-    hasStripeSecretKey: !!process.env.STRIPE_SECRET_KEY,
-    hasStripePublishableKey: !!process.env.STRIPE_PUBLISHABLE_KEY,
-    hasStripeWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET,
     hasTwilioSid: !!process.env.TWILIO_ACCOUNT_SID,
     hasTwilioToken: !!process.env.TWILIO_AUTH_TOKEN,
+    hasTwilioPhone: !!process.env.TWILIO_PHONE_NUMBER,
     frontendUrl: process.env.FRONTEND_URL || '(not set)'
   })
 })

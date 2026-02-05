@@ -149,3 +149,79 @@ export function getTabShareLink(tabId) {
   const origin = window.location.origin
   return `${origin}/join/${tabId}`
 }
+
+// ============================================
+// PAYMENT STATUS FUNCTIONS
+// ============================================
+
+/**
+ * Update a participant's payment status in a tab
+ * @param {string} tabId
+ * @param {string} participantId
+ * @param {Object} paymentData - { paymentStatus, paidAt, paidVia }
+ */
+export async function updateParticipantPayment(tabId, participantId, paymentData) {
+  const tabRef = doc(db, TABS_COLLECTION, tabId)
+  const tabSnap = await getDoc(tabRef)
+
+  if (!tabSnap.exists()) {
+    throw new Error('Tab not found')
+  }
+
+  const tab = tabSnap.data()
+  const updatedPeople = tab.people.map(p =>
+    p.id === participantId
+      ? { ...p, ...paymentData }
+      : p
+  )
+
+  // Check if all participants are confirmed
+  const allConfirmed = updatedPeople.every(p => p.paymentStatus === 'confirmed')
+
+  await updateDoc(tabRef, {
+    people: updatedPeople,
+    status: allConfirmed ? 'completed' : tab.status,
+    updatedAt: serverTimestamp()
+  })
+}
+
+/**
+ * Guest claims they have paid (awaiting admin confirmation)
+ * @param {string} tabId
+ * @param {string} participantId
+ * @param {string} paidVia - venmo, cashapp, paypal, cash, other
+ */
+export async function claimPayment(tabId, participantId, paidVia) {
+  await updateParticipantPayment(tabId, participantId, {
+    paymentStatus: 'claimed',
+    paidAt: new Date().toISOString(),
+    paidVia,
+    paid: false // Not confirmed yet
+  })
+}
+
+/**
+ * Admin confirms a guest's payment
+ * @param {string} tabId
+ * @param {string} participantId
+ */
+export async function confirmPayment(tabId, participantId) {
+  await updateParticipantPayment(tabId, participantId, {
+    paymentStatus: 'confirmed',
+    paid: true
+  })
+}
+
+/**
+ * Admin rejects a claimed payment (guest didn't actually pay)
+ * @param {string} tabId
+ * @param {string} participantId
+ */
+export async function rejectPayment(tabId, participantId) {
+  await updateParticipantPayment(tabId, participantId, {
+    paymentStatus: 'pending',
+    paidAt: null,
+    paidVia: null,
+    paid: false
+  })
+}

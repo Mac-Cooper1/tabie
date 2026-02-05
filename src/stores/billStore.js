@@ -156,6 +156,9 @@ export const useBillStore = create(
           phone,
           ...colorData,
           paid: false,
+          paymentStatus: 'pending', // pending, claimed, confirmed
+          paidAt: null,
+          paidVia: null, // venmo, cashapp, paypal, cash, other
           amountOwed: 0
         }
         
@@ -329,23 +332,35 @@ export const useBillStore = create(
         return Math.round((itemsTotal + taxTipShare) * 100) / 100
       },
       
-      // Mark person as paid
-      markPaid: (personId, paid = true) => {
+      // Mark person's payment status
+      // paymentStatus: 'pending' | 'claimed' | 'confirmed'
+      // paidVia: 'venmo' | 'cashapp' | 'paypal' | 'cash' | 'other' | null
+      markPaid: (personId, paymentStatus = 'confirmed', paidVia = null) => {
         set((state) => {
           if (!state.currentTab) return state
-          
+
           const updatedPeople = state.currentTab.people.map(p =>
-            p.id === personId ? { ...p, paid } : p
+            p.id === personId
+              ? {
+                  ...p,
+                  paymentStatus,
+                  paid: paymentStatus === 'confirmed', // Backward compat
+                  paidAt: ['claimed', 'confirmed'].includes(paymentStatus)
+                    ? new Date().toISOString()
+                    : null,
+                  paidVia
+                }
+              : p
           )
-          
-          const allPaid = updatedPeople.every(p => p.paid)
-          
+
+          const allConfirmed = updatedPeople.every(p => p.paymentStatus === 'confirmed')
+
           const updatedTab = {
             ...state.currentTab,
             people: updatedPeople,
-            status: allPaid ? 'completed' : 'pending'
+            status: allConfirmed ? 'completed' : state.currentTab.status
           }
-          
+
           return {
             currentTab: updatedTab,
             tabs: state.tabs.map(t => t.id === updatedTab.id ? updatedTab : t)
@@ -374,15 +389,17 @@ export const useBillStore = create(
       },
 
       // Publish tab to Firestore and make it joinable
-      publishTab: async () => {
+      // adminPaymentAccounts: { venmo, cashapp, paypal, adminName } - snapshot of admin's payment info
+      publishTab: async (adminPaymentAccounts = null) => {
         const tab = get().currentTab
         if (!tab) throw new Error('No current tab')
 
         try {
-          // Create in Firestore
+          // Create in Firestore with admin payment accounts snapshot
           const firestoreId = await createFirestoreTab({
             ...tab,
             status: 'open', // Make it joinable
+            adminPaymentAccounts, // Snapshot at creation time
           })
 
           // Update local state with Firestore ID

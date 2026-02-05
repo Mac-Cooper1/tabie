@@ -21,8 +21,16 @@ export default function Home() {
 
   const [activeFilter, setActiveFilter] = useState('active')
 
-  const activeTabs = tabs.filter(t => t.status === 'active' || t.status === 'pending')
+  const activeTabs = tabs.filter(t => t.status === 'active' || t.status === 'pending' || t.status === 'open' || t.status === 'setup')
   const completedTabs = tabs.filter(t => t.status === 'completed')
+
+  // Helper to get payment progress
+  const getPaymentProgress = (tab) => {
+    const people = tab.people || []
+    const paidCount = people.filter(p => p.paymentStatus === 'confirmed').length
+    const claimedCount = people.filter(p => p.paymentStatus === 'claimed').length
+    return { paidCount, claimedCount, total: people.length }
+  }
 
   const displayedTabs = activeFilter === 'active' ? activeTabs : completedTabs
 
@@ -130,6 +138,9 @@ export default function Home() {
           <div className="space-y-3">
             {displayedTabs.map((tab) => {
               const isPublished = !!tab.firestoreId
+              const { paidCount, claimedCount, total } = getPaymentProgress(tab)
+              const allPaid = paidCount === total && total > 0
+
               return (
                 <div key={tab.id} className="card flex items-center gap-4">
                   <button
@@ -137,7 +148,7 @@ export default function Home() {
                     className="flex-1 flex items-center gap-4 hover:opacity-80 transition-all active:scale-[0.98]"
                   >
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                      tab.status === 'completed' || tab.status === 'open'
+                      tab.status === 'completed' || allPaid
                         ? 'bg-green-500/20 text-green-400'
                         : isPublished
                         ? 'bg-tabie-primary/20 text-tabie-primary'
@@ -153,8 +164,31 @@ export default function Home() {
                       <div className="flex items-center gap-2 text-sm text-tabie-muted">
                         <span>{formatDate(tab.date)}</span>
                         <span>•</span>
-                        <span>{tab.people?.length || 0} people</span>
+                        <span>{total || 0} people</span>
                       </div>
+                      {/* Payment progress badge for published tabs */}
+                      {isPublished && total > 0 && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`text-xs px-2 py-0.5 rounded-full ${
+                            allPaid
+                              ? 'bg-green-500/20 text-green-500'
+                              : claimedCount > 0
+                              ? 'bg-yellow-500/20 text-yellow-500'
+                              : paidCount > 0
+                              ? 'bg-tabie-primary/20 text-tabie-primary'
+                              : 'bg-tabie-surface text-tabie-muted'
+                          }`}>
+                            {allPaid
+                              ? '✓ All paid'
+                              : `${paidCount}/${total} paid`}
+                          </div>
+                          {claimedCount > 0 && (
+                            <span className="text-xs text-yellow-500">
+                              {claimedCount} pending
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-right">
@@ -162,13 +196,13 @@ export default function Home() {
                         ${getTotal(tab)}
                       </div>
                       <div className={`text-xs ${
-                        tab.status === 'completed'
+                        tab.status === 'completed' || allPaid
                           ? 'text-green-400'
                           : isPublished
                           ? 'text-tabie-primary'
                           : 'text-orange-400'
                       }`}>
-                        {tab.status === 'completed' ? 'Settled' : isPublished ? 'Live' : 'Draft'}
+                        {tab.status === 'completed' || allPaid ? 'Settled' : isPublished ? 'Live' : 'Draft'}
                       </div>
                     </div>
 

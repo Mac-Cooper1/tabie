@@ -101,9 +101,31 @@ export default function InvitePeople() {
       return
     }
 
+    // Check if user has payment accounts set up
+    const hasPaymentAccounts = user?.paymentAccounts && (
+      user.paymentAccounts.venmo ||
+      user.paymentAccounts.cashapp ||
+      user.paymentAccounts.paypal
+    )
+
+    if (!hasPaymentAccounts) {
+      const proceed = confirm(
+        "You haven't set up any payment accounts yet. Guests won't be able to pay you directly.\n\nWould you like to continue anyway? You can add payment accounts in Settings."
+      )
+      if (!proceed) return
+    }
+
     setPublishing(true)
     try {
-      const result = await publishTab()
+      // Snapshot admin's payment accounts at tab creation time
+      const adminPaymentAccounts = {
+        venmo: user?.paymentAccounts?.venmo || null,
+        cashapp: user?.paymentAccounts?.cashapp || null,
+        paypal: user?.paymentAccounts?.paypal || null,
+        adminName: user?.name || 'Organizer'
+      }
+
+      const result = await publishTab(adminPaymentAccounts)
       setShareLink(result.shareLink)
 
       // Store the creator's participant ID locally

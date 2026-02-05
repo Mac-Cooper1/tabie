@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
+import { confirmPayment, rejectPayment } from '../services/firestore'
 import {
   Receipt,
   Users,
@@ -13,7 +14,11 @@ import {
   Share2,
   Copy,
   Divide,
-  UserPlus
+  UserPlus,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  MessageSquare
 } from 'lucide-react'
 
 export default function GuestItemSelection() {
@@ -33,7 +38,10 @@ export default function GuestItemSelection() {
 
   const [expandedItem, setExpandedItem] = useState(null)
   const [showSharePanel, setShowSharePanel] = useState(false)
+  const [showPaymentPanel, setShowPaymentPanel] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [confirmingPayment, setConfirmingPayment] = useState(null)
+  const [sendingReminder, setSendingReminder] = useState(null)
 
   // Get current participant from localStorage
   const participantId = localStorage.getItem(`tabie_participant_${tabId}`)
@@ -72,6 +80,87 @@ export default function GuestItemSelection() {
   const isAdmin = tab.people?.[0]?.id === participantId // First person is the admin
   const myTotal = getPersonTotal(participantId)
   const myItems = tab.items?.filter(item => item.assignedTo?.includes(participantId)) || []
+
+  // Payment tracking stats (for admin)
+  const confirmedCount = tab.people?.filter(p => p.paymentStatus === 'confirmed').length || 0
+  const claimedCount = tab.people?.filter(p => p.paymentStatus === 'claimed').length || 0
+  const pendingCount = tab.people?.filter(p => !p.paymentStatus || p.paymentStatus === 'pending').length || 0
+  const totalPeople = tab.people?.length || 0
+
+  // Handle confirming a payment claim
+  const handleConfirmPayment = async (personId) => {
+    setConfirmingPayment(personId)
+    try {
+      await confirmPayment(tabId, personId)
+    } catch (err) {
+      console.error('Error confirming payment:', err)
+      alert('Failed to confirm payment. Please try again.')
+    } finally {
+      setConfirmingPayment(null)
+    }
+  }
+
+  // Handle rejecting a payment claim
+  const handleRejectPayment = async (personId) => {
+    if (!confirm('Are you sure? This will reset their payment status to pending.')) return
+    setConfirmingPayment(personId)
+    try {
+      await rejectPayment(tabId, personId)
+    } catch (err) {
+      console.error('Error rejecting payment:', err)
+      alert('Failed to reject payment. Please try again.')
+    } finally {
+      setConfirmingPayment(null)
+    }
+  }
+
+  // Handle sending a reminder
+  const handleSendReminder = async (person) => {
+    if (!person.phone) {
+      alert(`${person.name} doesn't have a phone number on file.`)
+      return
+    }
+    setSendingReminder(person.id)
+    try {
+      const personTotal = getPersonTotal(person.id)
+      const response = await fetch('/api/twilio/send-payment-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: person.phone,
+          name: person.name,
+          amount: personTotal,
+          restaurant: tab.restaurantName || 'your meal',
+          tabId,
+          participantId: person.id,
+          organizerName: tab.adminPaymentAccounts?.adminName || tab.people?.[0]?.name || 'the organizer'
+        })
+      })
+      if (response.ok) {
+        alert(`Reminder sent to ${person.name}!`)
+      } else {
+        throw new Error('Failed to send')
+      }
+    } catch (err) {
+      console.error('Error sending reminder:', err)
+      alert('Failed to send reminder. Please try again.')
+    } finally {
+      setSendingReminder(null)
+    }
+  }
+
+  // Get payment status display info
+  const getPaymentStatusInfo = (person) => {
+    const status = person.paymentStatus || 'pending'
+    switch (status) {
+      case 'confirmed':
+        return { label: 'Paid', color: 'text-green-500', bg: 'bg-green-500/20', icon: CheckCircle2 }
+      case 'claimed':
+        return { label: 'Awaiting confirmation', color: 'text-yellow-500', bg: 'bg-yellow-500/20', icon: Clock }
+      default:
+        return { label: 'Unpaid', color: 'text-tabie-muted', bg: 'bg-tabie-surface', icon: null }
+    }
+  }
 
   // Calculate my subtotal (before tax/tip)
   let mySubtotal = 0
@@ -197,6 +286,158 @@ export default function GuestItemSelection() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Admin Payment Tracking Panel */}
+        {isAdmin && (
+          <div className="mt-4">
+            <button
+              onClick={() => setShowPaymentPanel(!showPaymentPanel)}
+              className={`w-full p-3 rounded-xl border transition-all flex items-center justify-between ${
+                claimedCount > 0
+                  ? 'bg-yellow-500/10 border-yellow-500/30'
+                  : confirmedCount === totalPeople
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : 'bg-tabie-card border-tabie-border'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  claimedCount > 0 ? 'bg-yellow-500/20' : confirmedCount === totalPeople ? 'bg-green-500/20' : 'bg-tabie-surface'
+                }`}>
+                  {claimedCount > 0 ? (
+                    <Clock className="w-5 h-5 text-yellow-500" />
+                  ) : confirmedCount === totalPeople ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <DollarSign className="w-5 h-5 text-tabie-muted" />
+                  )}
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-tabie-text">
+                    {confirmedCount === totalPeople
+                      ? 'All payments confirmed!'
+                      : `${confirmedCount}/${totalPeople} paid`}
+                  </p>
+                  {claimedCount > 0 && (
+                    <p className="text-xs text-yellow-500">
+                      {claimedCount} awaiting your confirmation
+                    </p>
+                  )}
+                </div>
+              </div>
+              {showPaymentPanel ? (
+                <ChevronUp className="w-5 h-5 text-tabie-muted" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-tabie-muted" />
+              )}
+            </button>
+
+            {showPaymentPanel && (
+              <div className="mt-2 p-4 bg-tabie-card rounded-xl border border-tabie-border space-y-3">
+                <p className="text-xs text-tabie-muted font-medium">Payment Status</p>
+
+                {tab.people?.map((person, index) => {
+                  const statusInfo = getPaymentStatusInfo(person)
+                  const personTotal = getPersonTotal(person.id)
+                  const isCurrentUser = person.id === participantId
+                  const StatusIcon = statusInfo.icon
+
+                  return (
+                    <div
+                      key={person.id}
+                      className={`p-3 rounded-lg ${statusInfo.bg}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                            style={{ backgroundColor: person.color + '30', color: person.color }}
+                          >
+                            {person.name[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-tabie-text">
+                              {person.name}
+                              {index === 0 && <span className="text-xs text-tabie-muted ml-1">(you)</span>}
+                            </p>
+                            <p className="text-xs text-tabie-muted font-mono">${personTotal.toFixed(2)}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {StatusIcon && (
+                            <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
+                          )}
+                          <span className={`text-xs font-medium ${statusInfo.color}`}>
+                            {statusInfo.label}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Show payment method if claimed or confirmed */}
+                      {person.paidVia && (
+                        <p className="text-xs text-tabie-muted mt-1 ml-10">
+                          via {person.paidVia.charAt(0).toUpperCase() + person.paidVia.slice(1)}
+                          {person.paidAt && ` • ${new Date(person.paidAt).toLocaleDateString()}`}
+                        </p>
+                      )}
+
+                      {/* Action buttons for admin */}
+                      {!isCurrentUser && (
+                        <div className="mt-2 ml-10 flex gap-2">
+                          {person.paymentStatus === 'claimed' && (
+                            <>
+                              <button
+                                onClick={() => handleConfirmPayment(person.id)}
+                                disabled={confirmingPayment === person.id}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-medium disabled:opacity-50"
+                              >
+                                {confirmingPayment === person.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Check className="w-3 h-3" />
+                                )}
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => handleRejectPayment(person.id)}
+                                disabled={confirmingPayment === person.id}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium disabled:opacity-50"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {(!person.paymentStatus || person.paymentStatus === 'pending') && (
+                            <button
+                              onClick={() => handleSendReminder(person)}
+                              disabled={sendingReminder === person.id}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-primary/20 text-tabie-primary text-xs font-medium disabled:opacity-50"
+                            >
+                              {sendingReminder === person.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <MessageSquare className="w-3 h-3" />
+                              )}
+                              Send Reminder
+                            </button>
+                          )}
+                          {person.paymentStatus === 'confirmed' && (
+                            <span className="text-xs text-green-500 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Payment received
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>

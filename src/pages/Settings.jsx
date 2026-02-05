@@ -1,48 +1,60 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import {
   ArrowLeft,
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Building2,
-  ExternalLink,
-  RefreshCw,
   User,
   Mail,
   Phone,
-  LogOut
+  LogOut,
+  ExternalLink,
+  DollarSign
 } from 'lucide-react'
+
+// Custom SVG icons for payment apps
+const VenmoIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+    <path d="M19.5 3c.9 1.5 1.3 3 1.3 5 0 5.5-4.7 12.7-8.5 17.7H5.2L2 4.4l6.2-.6 1.8 14.4c1.7-2.8 3.8-7.2 3.8-10.2 0-1.9-.3-3.2-.9-4.2L19.5 3z"/>
+  </svg>
+)
+
+const CashAppIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+    <path d="M23.59 3.47A5.1 5.1 0 0020.47.35C19.22.12 17.69.07 16 .07c-1.69 0-3.22.05-4.47.28A5.1 5.1 0 008.41 3.47c-.23 1.25-.28 2.78-.28 4.47s.05 3.22.28 4.47a5.1 5.1 0 003.12 3.12c1.25.23 2.78.28 4.47.28 1.69 0 3.22-.05 4.47-.28a5.1 5.1 0 003.12-3.12c.23-1.25.28-2.78.28-4.47s-.05-3.22-.28-4.47zM17.5 11.25l-1.5 1.5-2-2-2 2-1.5-1.5 2-2-2-2 1.5-1.5 2 2 2-2 1.5 1.5-2 2 2 2z"/>
+  </svg>
+)
+
+const PayPalIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+    <path d="M7.076 21.337H2.47a.641.641 0 01-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797H9.25c-.497 0-.92.369-.997.858l-.846 5.143-.005.034v.002h-.003l-.323 1.97z"/>
+  </svg>
+)
 
 export default function Settings() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { user, updateUser, logout, isAuthenticated } = useAuthStore()
 
   const [loading, setLoading] = useState(false)
-  const [connectStatus, setConnectStatus] = useState(null)
-  const [statusLoading, setStatusLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  // Handle onboarding return
-  useEffect(() => {
-    const onboarding = searchParams.get('onboarding')
-    if (onboarding === 'complete') {
-      setSuccessMessage('Bank account setup completed! Checking status...')
-      checkConnectStatus()
-    } else if (onboarding === 'refresh') {
-      setError('Onboarding was interrupted. Please try again.')
-    }
-  }, [searchParams])
+  // Payment account form state
+  const [venmo, setVenmo] = useState('')
+  const [cashapp, setCashapp] = useState('')
+  const [paypal, setPaypal] = useState('')
+  const [hasChanges, setHasChanges] = useState(false)
 
-  // Check Connect account status on mount
+  // Load existing payment accounts
   useEffect(() => {
-    if (user?.stripeConnectId) {
-      checkConnectStatus()
+    if (user?.paymentAccounts) {
+      setVenmo(user.paymentAccounts.venmo || '')
+      setCashapp(user.paymentAccounts.cashapp || '')
+      setPaypal(user.paymentAccounts.paypal || '')
     }
-  }, [user?.stripeConnectId])
+  }, [user?.paymentAccounts])
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -51,108 +63,51 @@ export default function Settings() {
     }
   }, [isAuthenticated, navigate])
 
-  const checkConnectStatus = async () => {
-    if (!user?.stripeConnectId) return
+  // Track changes
+  useEffect(() => {
+    const original = user?.paymentAccounts || {}
+    const changed =
+      venmo !== (original.venmo || '') ||
+      cashapp !== (original.cashapp || '') ||
+      paypal !== (original.paypal || '')
+    setHasChanges(changed)
+  }, [venmo, cashapp, paypal, user?.paymentAccounts])
 
-    setStatusLoading(true)
-    try {
-      const response = await fetch(`/api/stripe/connect/account-status/${user.stripeConnectId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setConnectStatus(data)
-
-        // Update local user state if onboarding is complete
-        if (data.isOnboarded && !user.stripeConnectOnboarded) {
-          await updateUser({
-            stripeConnectOnboarded: true,
-            stripeConnectEmail: data.email
-          })
-        }
-      }
-    } catch (err) {
-      console.error('Error checking connect status:', err)
-    } finally {
-      setStatusLoading(false)
-    }
+  // Validation helpers
+  const cleanVenmoUsername = (value) => {
+    // Remove @ prefix if present, keep alphanumeric and hyphens
+    return value.replace(/^@/, '').replace(/[^a-zA-Z0-9-_]/g, '')
   }
 
-  const handleConnectBank = async () => {
+  const cleanCashappTag = (value) => {
+    // Remove $ prefix for storage, keep alphanumeric
+    return value.replace(/^\$/, '').replace(/[^a-zA-Z0-9]/g, '')
+  }
+
+  const cleanPaypalUsername = (value) => {
+    // Keep alphanumeric only
+    return value.replace(/[^a-zA-Z0-9]/g, '')
+  }
+
+  const handleSave = async () => {
     setLoading(true)
     setError('')
+    setSuccessMessage('')
 
     try {
-      let accountId = user?.stripeConnectId
-
-      // Create account if doesn't exist
-      if (!accountId) {
-        const createResponse = await fetch('/api/stripe/connect/create-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email,
-            userId: user.id
-          })
-        })
-
-        if (!createResponse.ok) {
-          const err = await createResponse.json()
-          throw new Error(err.error || 'Failed to create account')
+      await updateUser({
+        paymentAccounts: {
+          venmo: venmo.trim() || null,
+          cashapp: cashapp.trim() || null,
+          paypal: paypal.trim() || null
         }
-
-        const createData = await createResponse.json()
-        accountId = createData.accountId
-
-        // Save to user profile
-        await updateUser({
-          stripeConnectId: accountId,
-          stripeConnectOnboarded: false
-        })
-      }
-
-      // Create onboarding link
-      const linkResponse = await fetch('/api/stripe/connect/create-onboarding-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId,
-          userId: user.id
-        })
       })
-
-      if (!linkResponse.ok) {
-        const err = await linkResponse.json()
-        throw new Error(err.error || 'Failed to create onboarding link')
-      }
-
-      const linkData = await linkResponse.json()
-
-      // Redirect to Stripe
-      window.location.href = linkData.url
+      setSuccessMessage('Payment accounts saved!')
+      setHasChanges(false)
+      setTimeout(() => setSuccessMessage(''), 3000)
     } catch (err) {
-      console.error('Error connecting bank:', err)
-      setError(err.message)
-      setLoading(false)
-    }
-  }
-
-  const handleOpenDashboard = async () => {
-    if (!user?.stripeConnectId) return
-
-    setLoading(true)
-    try {
-      const response = await fetch('/api/stripe/connect/create-login-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: user.stripeConnectId })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        window.open(data.url, '_blank')
-      }
-    } catch (err) {
-      console.error('Error opening dashboard:', err)
-      setError('Failed to open dashboard')
+      console.error('Error saving payment accounts:', err)
+      setError('Failed to save payment accounts')
     } finally {
       setLoading(false)
     }
@@ -163,6 +118,30 @@ export default function Settings() {
     navigate('/', { replace: true })
   }
 
+  // Generate test link for preview
+  const generateTestLink = (type) => {
+    const amount = '10.00'
+    const note = encodeURIComponent('Test payment via Tabie')
+
+    switch (type) {
+      case 'venmo':
+        return venmo ? `https://venmo.com/${venmo}?txn=pay&amount=${amount}&note=${note}&audience=private` : null
+      case 'cashapp':
+        return cashapp ? `https://cash.app/$${cashapp}/${amount}` : null
+      case 'paypal':
+        return paypal ? `https://paypal.me/${paypal}/${amount}` : null
+      default:
+        return null
+    }
+  }
+
+  const handleTestLink = (type) => {
+    const url = generateTestLink(type)
+    if (url) {
+      window.open(url, '_blank')
+    }
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-tabie-bg flex items-center justify-center">
@@ -171,8 +150,7 @@ export default function Settings() {
     )
   }
 
-  const isOnboarded = connectStatus?.isOnboarded || user?.stripeConnectOnboarded
-  const hasAccount = !!user?.stripeConnectId
+  const hasAnyAccount = venmo || cashapp || paypal
 
   return (
     <div className="min-h-screen bg-tabie-bg pb-8">
@@ -247,118 +225,155 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Bank Connection Section */}
+        {/* Payment Accounts Section */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-tabie-text">Payment Receiving</h3>
-            {hasAccount && (
+          <div className="flex items-center gap-2 mb-4">
+            <DollarSign className="w-5 h-5 text-tabie-primary" />
+            <h3 className="font-semibold text-tabie-text">Payment Accounts</h3>
+          </div>
+          <p className="text-sm text-tabie-muted mb-4">
+            Add your payment accounts so guests can pay you directly when splitting bills.
+          </p>
+
+          <div className="space-y-4">
+            {/* Venmo */}
+            <div>
+              <label className="text-sm text-tabie-muted mb-1.5 flex items-center gap-2">
+                <span className="text-[#008CFF]"><VenmoIcon /></span>
+                Venmo Username
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tabie-muted">@</span>
+                <input
+                  type="text"
+                  value={venmo}
+                  onChange={(e) => setVenmo(cleanVenmoUsername(e.target.value))}
+                  placeholder="your-username"
+                  className="input-field w-full pl-8"
+                />
+              </div>
+              {venmo && (
+                <button
+                  onClick={() => handleTestLink('venmo')}
+                  className="text-xs text-[#008CFF] hover:underline mt-1 flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Test Venmo link
+                </button>
+              )}
+            </div>
+
+            {/* Cash App */}
+            <div>
+              <label className="text-sm text-tabie-muted mb-1.5 flex items-center gap-2">
+                <span className="text-[#00D632]"><CashAppIcon /></span>
+                Cash App $Cashtag
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tabie-muted">$</span>
+                <input
+                  type="text"
+                  value={cashapp}
+                  onChange={(e) => setCashapp(cleanCashappTag(e.target.value))}
+                  placeholder="yourcashtag"
+                  className="input-field w-full pl-8"
+                />
+              </div>
+              {cashapp && (
+                <button
+                  onClick={() => handleTestLink('cashapp')}
+                  className="text-xs text-[#00D632] hover:underline mt-1 flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Test Cash App link
+                </button>
+              )}
+              <p className="text-xs text-tabie-muted/70 mt-1">
+                Note: Cash App links work best on mobile
+              </p>
+            </div>
+
+            {/* PayPal */}
+            <div>
+              <label className="text-sm text-tabie-muted mb-1.5 flex items-center gap-2">
+                <span className="text-[#003087]"><PayPalIcon /></span>
+                PayPal.me Username
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tabie-muted text-xs">paypal.me/</span>
+                <input
+                  type="text"
+                  value={paypal}
+                  onChange={(e) => setPaypal(cleanPaypalUsername(e.target.value))}
+                  placeholder="username"
+                  className="input-field w-full pl-20"
+                />
+              </div>
+              {paypal && (
+                <button
+                  onClick={() => handleTestLink('paypal')}
+                  className="text-xs text-[#003087] hover:underline mt-1 flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Test PayPal link
+                </button>
+              )}
+            </div>
+
+            {/* Save Button */}
+            {hasChanges && (
               <button
-                onClick={checkConnectStatus}
-                disabled={statusLoading}
-                className="text-tabie-muted hover:text-tabie-text transition-colors"
+                onClick={handleSave}
+                disabled={loading}
+                className="w-full btn-primary flex items-center justify-center gap-2"
               >
-                <RefreshCw className={`w-4 h-4 ${statusLoading ? 'animate-spin' : ''}`} />
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Payment Accounts'
+                )}
               </button>
             )}
           </div>
 
-          {!hasAccount ? (
-            // No account yet
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-tabie-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Building2 className="w-8 h-8 text-tabie-primary" />
-              </div>
-              <h4 className="font-medium text-tabie-text mb-2">Connect Your Bank</h4>
-              <p className="text-sm text-tabie-muted mb-4">
-                Set up your account to receive payments when guests pay their share.
-                Powered by Stripe.
-              </p>
-              <button
-                onClick={handleConnectBank}
-                disabled={loading}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Setting up...
-                  </>
-                ) : (
-                  <>
-                    <Building2 className="w-5 h-5" />
-                    Connect Bank Account
-                  </>
-                )}
-              </button>
-            </div>
-          ) : !isOnboarded ? (
-            // Account exists but not onboarded
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-yellow-500" />
-              </div>
-              <h4 className="font-medium text-tabie-text mb-2">Setup Incomplete</h4>
-              <p className="text-sm text-tabie-muted mb-4">
-                Your account was created but setup wasn't completed.
-                Please complete the setup to start receiving payments.
-              </p>
-              <button
-                onClick={handleConnectBank}
-                disabled={loading}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="w-5 h-5" />
-                    Complete Setup
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            // Fully onboarded
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-green-500" />
-              </div>
-              <h4 className="font-medium text-tabie-text mb-2">Bank Connected</h4>
-              <p className="text-sm text-tabie-muted mb-1">
-                You're all set to receive payments!
-              </p>
-              {connectStatus?.externalAccounts?.[0] && (
-                <p className="text-sm text-tabie-text mb-4">
-                  {connectStatus.externalAccounts[0].bankName} ****{connectStatus.externalAccounts[0].last4}
+          {/* Status indicator */}
+          {!hasAnyAccount && !hasChanges && (
+            <div className="mt-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
+                <p className="text-xs text-yellow-400">
+                  Add at least one payment account to receive payments from guests when you split bills.
                 </p>
-              )}
-              <button
-                onClick={handleOpenDashboard}
-                disabled={loading}
-                className="btn-secondary w-full flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <ExternalLink className="w-5 h-5" />
-                    Open Stripe Dashboard
-                  </>
-                )}
-              </button>
+              </div>
+            </div>
+          )}
+
+          {hasAnyAccount && !hasChanges && (
+            <div className="mt-4 bg-green-500/10 border border-green-500/30 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5" />
+                <p className="text-xs text-green-400">
+                  You're all set! Guests will see payment options when you create a tab.
+                </p>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Platform Fee Info */}
+        {/* How It Works */}
         <div className="card bg-tabie-surface/50">
-          <h4 className="text-sm font-medium text-tabie-text mb-2">Platform Fees</h4>
-          <p className="text-xs text-tabie-muted">
-            Tabie charges a small fee of $0.50 or 2% (whichever is greater, max $2) per payment.
-            Stripe processing fees also apply. Bank (ACH) payments have lower processing fees than cards.
+          <h4 className="text-sm font-medium text-tabie-text mb-2">How Payment Works</h4>
+          <ol className="text-xs text-tabie-muted space-y-1 list-decimal list-inside">
+            <li>Add your payment accounts above</li>
+            <li>When you create a tab, guests see your payment options</li>
+            <li>Guests tap to pay you directly via Venmo, Cash App, or PayPal</li>
+            <li>You confirm payments as they come in</li>
+          </ol>
+          <p className="text-xs text-tabie-muted mt-3">
+            Tabie doesn't process payments - we just connect guests to your payment apps.
           </p>
         </div>
 

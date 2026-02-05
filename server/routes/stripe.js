@@ -1,7 +1,29 @@
+/**
+ * DEPRECATED: Stripe payment routes
+ *
+ * Tabie has migrated from Stripe Connect to deep link payments
+ * (Venmo, Cash App, PayPal). These routes are no longer used.
+ *
+ * The server/index.js now returns 410 Gone for all /api/stripe/* requests.
+ * This file is kept for reference only.
+ */
+
 import express from 'express'
 import Stripe from 'stripe'
 
 const router = express.Router()
+
+// All routes return 410 Gone - payments handled via deep links
+router.use((req, res) => {
+  return res.status(410).json({
+    error: 'Stripe payments deprecated',
+    message: 'Payments are now handled via Venmo, Cash App, and PayPal deep links'
+  })
+})
+
+export default router
+
+/* DEPRECATED CODE BELOW - KEPT FOR REFERENCE
 
 // Initialize Stripe with secret key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -532,4 +554,4 @@ router.get('/config', (req, res) => {
   res.json({ publishableKey })
 })
 
-export default router
+// END OF DEPRECATED CODE */
