@@ -6,8 +6,10 @@ import {
   getTab as getFirestoreTab,
   subscribeToUserTabs,
   subscribeToTab,
-  getTabShareLink
+  getTabShareLink,
+  awardPointsForTab as awardPointsFirestore
 } from '../services/firestore'
+import { useAuthStore } from './authStore'
 import { auth } from '../lib/firebase'
 
 const COLORS = [
@@ -426,6 +428,7 @@ export const useBillStore = create((set, get) => ({
   },
 
   // Mark person's payment status - writes to Firestore
+  // When all guests are confirmed, automatically awards points to admin
   markPaid: async (personId, paymentStatus = 'confirmed', paidVia = null) => {
     const tab = get().currentTab
     if (!tab) return
@@ -445,11 +448,57 @@ export const useBillStore = create((set, get) => ({
     )
 
     const allConfirmed = updatedPeople.every(p => p.paymentStatus === 'confirmed')
+    const wasNotCompleted = tab.status !== 'completed'
 
     await get().updateCurrentTab({
       people: updatedPeople,
       status: allConfirmed ? 'completed' : tab.status
     })
+
+    // If tab just became completed, award points to admin
+    if (allConfirmed && wasNotCompleted && !tab.pointsAwarded) {
+      await get().awardPoints()
+    }
+  },
+
+  // Award points to the tab admin for a settled tab
+  awardPoints: async () => {
+    const tab = get().currentTab
+    if (!tab || tab.pointsAwarded) return null
+
+    const firestoreId = tab.firestoreId || tab.id
+    const adminId = tab.createdBy
+
+    if (!adminId) {
+      console.error('No admin ID found for tab')
+      return null
+    }
+
+    try {
+      const pointsEarned = await awardPointsFirestore(adminId, firestoreId, {
+        tabName: tab.restaurantName || 'Tab',
+        subtotal: tab.subtotal || 0
+      })
+
+      // Update local auth store with new points
+      if (pointsEarned > 0) {
+        const authStore = useAuthStore.getState()
+        if (authStore.user?.id === adminId) {
+          authStore.addPoints({
+            tabId: firestoreId,
+            tabName: tab.restaurantName || 'Tab',
+            subtotal: tab.subtotal || 0,
+            pointsEarned,
+            earnedAt: new Date().toISOString()
+          })
+        }
+      }
+
+      return pointsEarned
+    } catch (error) {
+      console.error('Error awarding points:', error)
+      return null
+    }
   },
 
   // Get tab by ID (from local cache)

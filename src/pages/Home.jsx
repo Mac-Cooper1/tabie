@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Settings,
   Trash2,
-  Link
+  Link,
+  Star
 } from 'lucide-react'
 
 export default function Home() {
@@ -79,12 +80,24 @@ export default function Home() {
             </h1>
             <p className="text-tabie-muted text-sm">Ready to split some bills?</p>
           </div>
-          <button
-            onClick={() => navigate('/settings')}
-            className="w-10 h-10 rounded-full bg-tabie-surface flex items-center justify-center text-tabie-muted hover:text-tabie-text transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Points badge */}
+            <button
+              onClick={() => navigate('/rewards')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 transition-colors"
+            >
+              <Star className="w-4 h-4 fill-current" />
+              <span className="font-semibold text-sm">
+                {(user?.points?.balance || 0).toLocaleString()}
+              </span>
+            </button>
+            <button
+              onClick={() => navigate('/settings')}
+              className="w-10 h-10 rounded-full bg-tabie-surface flex items-center justify-center text-tabie-muted hover:text-tabie-text transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Filter tabs */}

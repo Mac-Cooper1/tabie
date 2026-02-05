@@ -14,6 +14,7 @@ import GuestItemSelection from './pages/GuestItemSelection'
 import GuestCheckout from './pages/GuestCheckout'
 import PaymentSuccess from './pages/PaymentSuccess'
 import Settings from './pages/Settings'
+import Rewards from './pages/Rewards'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -95,6 +96,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Settings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rewards"
+          element={
+            <ProtectedRoute>
+              <Rewards />
             </ProtectedRoute>
           }
         />

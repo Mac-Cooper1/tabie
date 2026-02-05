@@ -264,3 +264,90 @@ export async function rejectPayment(tabId, participantId) {
     paid: false
   })
 }
+
+// ============================================
+// REWARDS POINTS FUNCTIONS
+// ============================================
+
+/**
+ * Calculate points for a tab subtotal
+ * Points = subtotal * 6.7, rounded down
+ * @param {number} subtotal
+ * @returns {number}
+ */
+export function calculatePoints(subtotal) {
+  return Math.floor(subtotal * 6.7)
+}
+
+/**
+ * Award points to a user for a settled tab
+ * @param {string} userId - The tab admin's user ID
+ * @param {string} tabId - The tab ID
+ * @param {Object} tabData - { tabName, subtotal }
+ * @returns {Promise<number>} - Points awarded
+ */
+export async function awardPointsForTab(userId, tabId, tabData) {
+  const userRef = doc(db, 'users', userId)
+  const tabRef = doc(db, TABS_COLLECTION, tabId)
+
+  // Get current user data
+  const userSnap = await getDoc(userRef)
+  if (!userSnap.exists()) {
+    throw new Error('User not found')
+  }
+
+  // Check if points were already awarded for this tab
+  const tabSnap = await getDoc(tabRef)
+  if (tabSnap.exists() && tabSnap.data().pointsAwarded) {
+    console.log('Points already awarded for this tab')
+    return 0
+  }
+
+  const userData = userSnap.data()
+  const currentPoints = userData.points || { balance: 0, lifetime: 0, history: [] }
+
+  const pointsEarned = calculatePoints(tabData.subtotal)
+
+  // Create history entry
+  const historyEntry = {
+    tabId,
+    tabName: tabData.tabName || 'Tab',
+    subtotal: tabData.subtotal,
+    pointsEarned,
+    earnedAt: new Date().toISOString()
+  }
+
+  // Update user points
+  const updatedPoints = {
+    balance: currentPoints.balance + pointsEarned,
+    lifetime: currentPoints.lifetime + pointsEarned,
+    history: [historyEntry, ...(currentPoints.history || [])]
+  }
+
+  await setDoc(userRef, { points: updatedPoints }, { merge: true })
+
+  // Mark tab as having points awarded
+  await updateDoc(tabRef, {
+    pointsAwarded: true,
+    pointsAmount: pointsEarned,
+    updatedAt: serverTimestamp()
+  })
+
+  return pointsEarned
+}
+
+/**
+ * Get user's points data
+ * @param {string} userId
+ * @returns {Promise<Object>}
+ */
+export async function getUserPoints(userId) {
+  const userRef = doc(db, 'users', userId)
+  const userSnap = await getDoc(userRef)
+
+  if (!userSnap.exists()) {
+    return { balance: 0, lifetime: 0, history: [] }
+  }
+
+  return userSnap.data().points || { balance: 0, lifetime: 0, history: [] }
+}

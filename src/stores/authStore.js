@@ -41,6 +41,12 @@ export const useAuthStore = create(
                     venmo: userData.venmo || null,  // Migrate old venmo field
                     cashapp: null,
                     paypal: null
+                  },
+                  // Rewards points
+                  points: userData.points || {
+                    balance: 0,
+                    lifetime: 0,
+                    history: []
                   }
                 },
                 loading: false,
@@ -63,6 +69,11 @@ export const useAuthStore = create(
                     venmo: null,
                     cashapp: null,
                     paypal: null
+                  },
+                  points: {
+                    balance: 0,
+                    lifetime: 0,
+                    history: []
                   }
                 },
                 loading: false,
@@ -106,6 +117,11 @@ export const useAuthStore = create(
               cashapp: null,
               paypal: null
             },
+            points: {
+              balance: 0,
+              lifetime: 0,
+              history: []
+            },
             createdAt: new Date().toISOString()
           })
 
@@ -121,6 +137,11 @@ export const useAuthStore = create(
                 venmo: null,
                 cashapp: null,
                 paypal: null
+              },
+              points: {
+                balance: 0,
+                lifetime: 0,
+                history: []
               }
             },
             loading: false,
@@ -193,7 +214,45 @@ export const useAuthStore = create(
       },
 
       // Clear error
-      clearError: () => set({ error: null })
+      clearError: () => set({ error: null }),
+
+      // Refresh user data from Firestore (useful after points are awarded)
+      refreshUser: async () => {
+        const user = get().user
+        if (!user?.id) return
+
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.id))
+          if (userDoc.exists()) {
+            const userData = userDoc.data()
+            set((state) => ({
+              user: {
+                ...state.user,
+                points: userData.points || { balance: 0, lifetime: 0, history: [] }
+              }
+            }))
+          }
+        } catch (error) {
+          console.error('Error refreshing user data:', error)
+        }
+      },
+
+      // Add points to user (called after tab settles)
+      addPoints: (pointsData) => {
+        set((state) => ({
+          user: {
+            ...state.user,
+            points: {
+              balance: (state.user?.points?.balance || 0) + pointsData.pointsEarned,
+              lifetime: (state.user?.points?.lifetime || 0) + pointsData.pointsEarned,
+              history: [
+                pointsData,
+                ...(state.user?.points?.history || [])
+              ]
+            }
+          }
+        }))
+      }
     }),
     {
       name: 'tabie-auth',
