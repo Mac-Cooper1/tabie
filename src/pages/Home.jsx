@@ -210,10 +210,10 @@ export default function Home() {
                   </button>
 
                   <button
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation()
                       if (confirm('Delete this tab?')) {
-                        deleteTab(tab.id)
+                        await deleteTab(tab.id)
                       }
                     }}
                     className="p-2 text-tabie-muted hover:text-red-400 transition-colors"

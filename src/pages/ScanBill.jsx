@@ -57,9 +57,9 @@ export default function ScanBill() {
     setPreview(compressedImage)
 
     // Save the compressed image to the tab immediately (so we never lose it)
-    if (currentTab?.id) {
+    if (currentTab?.id || currentTab?.firestoreId) {
       console.log('Saving receipt image to tab...')
-      updateCurrentTab({ receiptImage: compressedImage })
+      await updateCurrentTab({ receiptImage: compressedImage })
     }
 
     await processReceipt(file)
@@ -75,12 +75,12 @@ export default function ScanBill() {
 
       if (result.success) {
         // Update the current tab with scanned data
-        updateCurrentTab({
+        await updateCurrentTab({
           restaurantName: result.restaurantName
         })
 
-        setItems(result.items)
-        setTax(result.tax)
+        await setItems(result.items)
+        await setTax(result.tax)
 
         // Navigate to invite people page
         navigate('/invite-people')
@@ -103,12 +103,12 @@ export default function ScanBill() {
     cameraInputRef.current?.click()
   }
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     setPreview(null)
     setError(null)
     // Clear the saved image too
-    if (currentTab?.id) {
-      updateCurrentTab({ receiptImage: null })
+    if (currentTab?.id || currentTab?.firestoreId) {
+      await updateCurrentTab({ receiptImage: null })
     }
   }
 

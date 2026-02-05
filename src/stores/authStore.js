@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../lib/firebase'
+import { useBillStore } from './billStore'
 
 export const useAuthStore = create(
   persist(
@@ -45,6 +46,9 @@ export const useAuthStore = create(
                 loading: false,
                 error: null
               })
+
+              // Subscribe to user's tabs from Firestore
+              useBillStore.getState().subscribeToTabs(firebaseUser.uid)
             } catch (error) {
               console.error('Error fetching user data:', error)
               set({
@@ -64,9 +68,14 @@ export const useAuthStore = create(
                 loading: false,
                 error: null
               })
+
+              // Subscribe to user's tabs even if profile fetch failed
+              useBillStore.getState().subscribeToTabs(firebaseUser.uid)
             }
           } else {
-            // User is signed out
+            // User is signed out - unsubscribe from tabs
+            useBillStore.getState().unsubscribeFromTabs()
+
             set({
               isAuthenticated: false,
               user: null,
@@ -151,6 +160,9 @@ export const useAuthStore = create(
       // Sign out
       logout: async () => {
         try {
+          // Unsubscribe from tabs before signing out
+          useBillStore.getState().unsubscribeFromTabs()
+
           await signOut(auth)
           set({
             isAuthenticated: false,

@@ -7,7 +7,11 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
+  query,
+  where,
+  orderBy,
   serverTimestamp,
   arrayUnion
 } from 'firebase/firestore'
@@ -87,6 +91,41 @@ export function subscribeToTab(tabId, callback) {
     console.error('Error subscribing to tab:', error)
     callback(null)
   })
+}
+
+/**
+ * Subscribe to all tabs created by a user (real-time)
+ * @param {string} userId - The user's Firebase UID
+ * @param {Function} callback - Called with array of tabs on each update
+ * @returns {Function} - Unsubscribe function
+ */
+export function subscribeToUserTabs(userId, callback) {
+  const tabsQuery = query(
+    collection(db, TABS_COLLECTION),
+    where('createdBy', '==', userId),
+    orderBy('createdAt', 'desc')
+  )
+
+  return onSnapshot(tabsQuery, (snapshot) => {
+    const tabs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      firestoreId: doc.id, // For consistency with existing code
+      ...doc.data()
+    }))
+    callback(tabs)
+  }, (error) => {
+    console.error('Error subscribing to user tabs:', error)
+    callback([])
+  })
+}
+
+/**
+ * Delete a tab from Firestore
+ * @param {string} tabId
+ */
+export async function deleteTab(tabId) {
+  const tabRef = doc(db, TABS_COLLECTION, tabId)
+  await deleteDoc(tabRef)
 }
 
 /**

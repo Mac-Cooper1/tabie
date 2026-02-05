@@ -44,22 +44,27 @@ export default function InvitePeople() {
 
   // Auto-add the creator on mount if not already in list
   useEffect(() => {
-    if (!currentTab || !user) return
+    const addCreator = async () => {
+      if (!currentTab || !user) return
 
-    // Skip if we've already added creator for this tab
-    if (creatorAddedForTab.current === currentTab.id) return
+      // Skip if we've already added creator for this tab
+      const tabId = currentTab.firestoreId || currentTab.id
+      if (creatorAddedForTab.current === tabId) return
 
-    // Check if user is already in the people list
-    const userName = user.name || user.email?.split('@')[0] || 'Me'
-    const alreadyAdded = currentTab.people.some(p => p.name === userName)
+      // Check if user is already in the people list
+      const userName = user.name || user.email?.split('@')[0] || 'Me'
+      const alreadyAdded = currentTab.people?.some(p => p.name === userName)
 
-    if (!alreadyAdded && currentTab.people.length === 0) {
-      addPerson(userName, user.phone || null)
+      if (!alreadyAdded && (!currentTab.people || currentTab.people.length === 0)) {
+        await addPerson(userName, user.phone || null)
+      }
+
+      // Mark that we've handled this tab
+      creatorAddedForTab.current = tabId
     }
 
-    // Mark that we've handled this tab
-    creatorAddedForTab.current = currentTab.id
-  }, [currentTab?.id, user?.id]) // Run when tab or user changes
+    addCreator()
+  }, [currentTab?.id, currentTab?.firestoreId, user?.id]) // Run when tab or user changes
 
   // Check if tab already has a share link
   useEffect(() => {
@@ -76,23 +81,23 @@ export default function InvitePeople() {
   const { people, items, subtotal, tax, tip, tipPercentage, splitTaxTipMethod } = currentTab
   const grandTotal = (subtotal || 0) + (tax || 0) + (tip || 0)
 
-  const handleAddPerson = (e) => {
+  const handleAddPerson = async (e) => {
     e.preventDefault()
     if (newPersonName.trim()) {
-      addPerson(newPersonName.trim(), newPersonPhone.trim() || null)
+      await addPerson(newPersonName.trim(), newPersonPhone.trim() || null)
       setNewPersonName('')
       setNewPersonPhone('')
       setShowAddPerson(false)
     }
   }
 
-  const handleTaxChange = (value) => {
+  const handleTaxChange = async (value) => {
     const numValue = parseFloat(value) || 0
-    setTax(numValue)
+    await setTax(numValue)
   }
 
-  const handleTipPercentageChange = (percentage) => {
-    setTipPercentage(percentage)
+  const handleTipPercentageChange = async (percentage) => {
+    await setTipPercentage(percentage)
   }
 
   const handlePublishAndContinue = async () => {
@@ -226,7 +231,7 @@ export default function InvitePeople() {
                 </div>
                 {index > 0 && (
                   <button
-                    onClick={() => removePerson(person.id)}
+                    onClick={async () => await removePerson(person.id)}
                     className="p-2 text-tabie-muted hover:text-red-400"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -335,7 +340,7 @@ export default function InvitePeople() {
               <label className="text-sm text-tabie-muted mb-1.5 block">How to split tax & tip?</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setSplitMethod('equal')}
+                  onClick={async () => await setSplitMethod('equal')}
                   className={`py-3 rounded-xl text-sm font-medium transition-all ${
                     splitTaxTipMethod === 'equal'
                       ? 'bg-tabie-primary text-white'
@@ -345,7 +350,7 @@ export default function InvitePeople() {
                   Split Equally
                 </button>
                 <button
-                  onClick={() => setSplitMethod('proportional')}
+                  onClick={async () => await setSplitMethod('proportional')}
                   className={`py-3 rounded-xl text-sm font-medium transition-all ${
                     splitTaxTipMethod === 'proportional'
                       ? 'bg-tabie-primary text-white'

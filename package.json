@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js",
-    "start:dev": "NODE_ENV=development node server/index.js"
+    "start:dev": "NODE_ENV=development node server/index.js",
+    "firebase:login": "firebase login",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules",
+    "firebase:deploy:indexes": "firebase deploy --only firestore:indexes",
+    "firebase:deploy:firestore": "firebase deploy --only firestore"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^2.4.0",
@@ -30,6 +34,7 @@
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
+    "firebase-tools": "^15.5.1",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.5",
     "vite": "^5.0.0"

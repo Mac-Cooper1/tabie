@@ -6,14 +6,24 @@ export default function NewTab() {
   const navigate = useNavigate()
   const { createTab, setCurrentTab } = useBillStore()
 
-  const handleScanReceipt = () => {
-    const tabId = createTab()
-    navigate('/scan')
+  const handleScanReceipt = async () => {
+    try {
+      await createTab()
+      navigate('/scan')
+    } catch (error) {
+      console.error('Error creating tab:', error)
+      alert('Failed to create tab. Please try again.')
+    }
   }
 
-  const handleManualEntry = () => {
-    const tabId = createTab()
-    navigate('/invite-people')
+  const handleManualEntry = async () => {
+    try {
+      await createTab()
+      navigate('/invite-people')
+    } catch (error) {
+      console.error('Error creating tab:', error)
+      alert('Failed to create tab. Please try again.')
+    }
   }
 
   return (

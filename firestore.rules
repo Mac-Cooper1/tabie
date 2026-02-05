@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User profiles - only the owner can read/write
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Tabs - public read (for guests), authenticated create, owner-only update/delete
+    match /tabs/{tabId} {
+      // Anyone can read a tab (guests need to access without auth)
+      // Tab IDs are random/unguessable, acceptable for MVP
+      allow read: if true;
+
+      // Only authenticated users can create tabs
+      allow create: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+
+      // Tab creator can update/delete anything
+      // Guests (unauthenticated) can update people and items arrays
+      // This allows guests to join tabs and claim items without auth
+      allow update: if (request.auth != null && resource.data.createdBy == request.auth.uid)
+        || (
+          // Allow guest updates only to people and items fields
+          // They cannot change: status, createdBy, createdAt, adminPaymentAccounts, etc.
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['people', 'items', 'updatedAt'])
+        );
+
+      // Only the tab creator can delete
+      allow delete: if request.auth != null
+        && resource.data.createdBy == request.auth.uid;
+    }
+  }
+}
