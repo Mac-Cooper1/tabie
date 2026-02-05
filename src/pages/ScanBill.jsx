@@ -3,6 +3,37 @@ import { useNavigate } from 'react-router-dom'
 import { useBillStore } from '../stores/billStore'
 import { scanReceipt, hasMindeeApiKey } from '../services/ocr'
 import { ArrowLeft, Camera, Upload, Image, Loader2, AlertCircle } from 'lucide-react'
+import heic2any from 'heic2any'
+
+// Supported image formats
+const ACCEPTED_FORMATS = 'image/jpeg,image/png,image/webp,image/tiff,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.tiff,.tif,.heic,.heif'
+
+// Check if file is HEIC/HEIF format
+const isHeicFile = (file) => {
+  const type = file.type.toLowerCase()
+  const name = file.name.toLowerCase()
+  return type === 'image/heic' || type === 'image/heif' ||
+         name.endsWith('.heic') || name.endsWith('.heif')
+}
+
+// Convert HEIC/HEIF to JPEG
+const convertHeicToJpeg = async (file) => {
+  try {
+    const blob = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.9
+    })
+    // heic2any can return an array for multi-image HEIC files
+    const resultBlob = Array.isArray(blob) ? blob[0] : blob
+    return new File([resultBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), {
+      type: 'image/jpeg'
+    })
+  } catch (error) {
+    console.error('HEIC conversion error:', error)
+    throw new Error('Failed to convert HEIC image. Please try a different photo.')
+  }
+}
 
 // Compress image to ensure it fits in Firestore (max ~700KB to be safe)
 const compressImage = (file, maxWidth = 1200, quality = 0.7) => {
@@ -52,17 +83,33 @@ export default function ScanBill() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Compress and show preview
-    const compressedImage = await compressImage(file)
-    setPreview(compressedImage)
+    setIsProcessing(true)
+    setError(null)
 
-    // Save the compressed image to the tab immediately (so we never lose it)
-    if (currentTab?.id || currentTab?.firestoreId) {
-      console.log('Saving receipt image to tab...')
-      await updateCurrentTab({ receiptImage: compressedImage })
+    try {
+      // Convert HEIC/HEIF files to JPEG (iPhones use HEIC by default)
+      let processableFile = file
+      if (isHeicFile(file)) {
+        console.log('Converting HEIC file to JPEG...')
+        processableFile = await convertHeicToJpeg(file)
+      }
+
+      // Compress and show preview
+      const compressedImage = await compressImage(processableFile)
+      setPreview(compressedImage)
+
+      // Save the compressed image to the tab immediately (so we never lose it)
+      if (currentTab?.id || currentTab?.firestoreId) {
+        console.log('Saving receipt image to tab...')
+        await updateCurrentTab({ receiptImage: compressedImage })
+      }
+
+      await processReceipt(processableFile)
+    } catch (err) {
+      console.error('File processing error:', err)
+      setError(err.message || 'Failed to process image. Please try another photo.')
+      setIsProcessing(false)
     }
-
-    await processReceipt(file)
   }
 
   const processReceipt = async (file) => {
@@ -137,14 +184,14 @@ export default function ScanBill() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={ACCEPTED_FORMATS}
         onChange={handleFileSelect}
         className="hidden"
       />
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/*"
+        accept={ACCEPTED_FORMATS}
         capture="environment"
         onChange={handleFileSelect}
         className="hidden"
