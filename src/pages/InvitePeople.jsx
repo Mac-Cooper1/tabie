@@ -26,6 +26,7 @@ export default function InvitePeople() {
     addPerson,
     removePerson,
     setTax,
+    setTip,
     setTipPercentage,
     setSplitMethod,
     publishTab,
@@ -38,6 +39,8 @@ export default function InvitePeople() {
   const [publishing, setPublishing] = useState(false)
   const [shareLink, setShareLink] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [showCustomTip, setShowCustomTip] = useState(false)
+  const [customTipValue, setCustomTipValue] = useState('')
 
   // Track if we've already added the creator for this tab
   const creatorAddedForTab = useRef(null)
@@ -97,7 +100,15 @@ export default function InvitePeople() {
   }
 
   const handleTipPercentageChange = async (percentage) => {
+    setShowCustomTip(false)
+    setCustomTipValue('')
     await setTipPercentage(percentage)
+  }
+
+  const handleCustomTipChange = async (value) => {
+    const numValue = parseFloat(value) || 0
+    setCustomTipValue(value)
+    await setTip(numValue)
   }
 
   const handlePublishAndContinue = async () => {
@@ -315,13 +326,13 @@ export default function InvitePeople() {
             {/* Tip */}
             <div>
               <label className="text-sm text-tabie-muted mb-1.5 block">Tip</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 {[15, 18, 20, 25].map((pct) => (
                   <button
                     key={pct}
                     onClick={() => handleTipPercentageChange(pct)}
                     className={`py-2 rounded-xl text-sm font-medium transition-all ${
-                      tipPercentage === pct
+                      tipPercentage === pct && !showCustomTip
                         ? 'bg-tabie-primary text-white'
                         : 'bg-tabie-surface text-tabie-muted hover:text-tabie-text'
                     }`}
@@ -329,7 +340,34 @@ export default function InvitePeople() {
                     {pct}%
                   </button>
                 ))}
+                <button
+                  onClick={() => {
+                    setShowCustomTip(true)
+                    setCustomTipValue(tip > 0 && tipPercentage === 0 ? tip.toString() : '')
+                  }}
+                  className={`py-2 rounded-xl text-sm font-medium transition-all ${
+                    showCustomTip || (tipPercentage === 0 && tip > 0)
+                      ? 'bg-tabie-primary text-white'
+                      : 'bg-tabie-surface text-tabie-muted hover:text-tabie-text'
+                  }`}
+                >
+                  Custom
+                </button>
               </div>
+              {showCustomTip && (
+                <div className="relative mt-2">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tabie-muted" />
+                  <input
+                    type="number"
+                    value={customTipValue}
+                    onChange={(e) => handleCustomTipChange(e.target.value)}
+                    placeholder="Enter tip amount"
+                    step="0.01"
+                    className="input-field w-full pl-10"
+                    autoFocus
+                  />
+                </div>
+              )}
               <p className="text-sm text-tabie-muted mt-2 text-center">
                 Tip: ${(tip || 0).toFixed(2)}
               </p>

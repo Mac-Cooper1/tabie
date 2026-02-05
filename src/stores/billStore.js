@@ -8,6 +8,7 @@ import {
   subscribeToTab,
   getTabShareLink
 } from '../services/firestore'
+import { auth } from '../lib/firebase'
 
 const COLORS = [
   { bg: 'chip-red', color: '#ef4444' },
@@ -93,9 +94,13 @@ export const useBillStore = create((set, get) => ({
 
   // Create a new tab - writes to Firestore immediately
   createTab: async (restaurantName = null) => {
-    const userId = get().currentUserId
-    if (!userId) throw new Error('User not authenticated')
+    // Use Firebase Auth directly to ensure we have the correct user
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      throw new Error('Not authenticated. Please sign in again.')
+    }
 
+    const userId = currentUser.uid
     set({ loading: true })
 
     const newTab = {
@@ -499,6 +504,19 @@ export const useBillStore = create((set, get) => ({
 
     const firestoreId = tab.firestoreId || tab.id
 
+    // Verify Firebase Auth state before attempting update
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      console.error('publishTab: No Firebase Auth user. Tab createdBy:', tab.createdBy)
+      throw new Error('Not authenticated. Please sign in again.')
+    }
+
+    // Verify the current user owns this tab
+    if (tab.createdBy && tab.createdBy !== currentUser.uid) {
+      console.error('publishTab: User mismatch. Tab createdBy:', tab.createdBy, 'Current user:', currentUser.uid)
+      throw new Error('You do not have permission to modify this tab.')
+    }
+
     try {
       await updateFirestoreTab(firestoreId, {
         status: 'open',
@@ -513,6 +531,10 @@ export const useBillStore = create((set, get) => ({
       }
     } catch (error) {
       console.error('Error publishing tab:', error)
+      // Provide more helpful error message
+      if (error.code === 'permission-denied') {
+        throw new Error('Permission denied. Please sign out and sign back in.')
+      }
       throw error
     }
   },
