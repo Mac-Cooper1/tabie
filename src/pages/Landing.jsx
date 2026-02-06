@@ -62,7 +62,7 @@ export default function Landing() {
             </div>
 
             {/* Floating avatars */}
-            <div className="absolute -right-4 top-4 flex -space-x-2">
+            <div className="absolute right-0 -mr-2 top-4 flex -space-x-2">
               <div className="w-8 h-8 rounded-full bg-red-500 border-2 border-tabie-bg flex items-center justify-center text-xs font-bold text-white">S</div>
               <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-tabie-bg flex items-center justify-center text-xs font-bold text-white">M</div>
               <div className="w-8 h-8 rounded-full bg-purple-500 border-2 border-tabie-bg flex items-center justify-center text-xs font-bold text-white">J</div>
@@ -84,7 +84,7 @@ export default function Landing() {
           />
           <Feature
             icon={<Sparkles className="w-5 h-5" />}
-            text="Get paid what you're owed"
+            text="Get paid what you're owed + Rewards..."
             color="text-tabie-primary"
           />
         </div>
@@ -119,14 +119,14 @@ export default function Landing() {
         <div className="flex justify-center gap-4 mt-6">
           <button
             onClick={() => navigate('/privacy')}
-            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors"
+            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors focus-ring rounded"
           >
             Privacy Policy
           </button>
           <span className="text-tabie-muted/50">•</span>
           <button
             onClick={() => navigate('/terms')}
-            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors"
+            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors focus-ring rounded"
           >
             Terms of Service
           </button>

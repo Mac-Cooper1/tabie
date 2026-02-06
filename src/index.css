@@ -85,14 +85,16 @@ body {
 
 /* Button styles */
 .btn-primary {
-  @apply bg-tabie-primary text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-300;
-  @apply hover:bg-tabie-primary-light hover:scale-105 active:scale-95;
-  @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+  @apply bg-tabie-primary text-white font-semibold py-3.5 px-8 rounded-xl transition-colors duration-200;
+  @apply hover:bg-tabie-primary-light active:bg-tabie-primary-dark;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply focus-visible:ring-2 focus-visible:ring-tabie-primary focus-visible:ring-offset-2 focus-visible:ring-offset-tabie-bg focus-visible:outline-none;
 }
 
 .btn-secondary {
-  @apply bg-tabie-surface border border-tabie-border text-tabie-text font-medium py-3 px-6 rounded-xl transition-all duration-300;
-  @apply hover:bg-tabie-border hover:scale-105 active:scale-95;
+  @apply bg-tabie-surface border border-tabie-border text-tabie-text font-medium py-3 px-6 rounded-xl transition-colors duration-200;
+  @apply hover:bg-tabie-border active:bg-tabie-border/80;
+  @apply focus-visible:ring-2 focus-visible:ring-tabie-primary focus-visible:ring-offset-2 focus-visible:ring-offset-tabie-bg focus-visible:outline-none;
 }
 
 /* Input styles - base without horizontal padding so utilities can override */
@@ -113,7 +115,25 @@ body {
 
 /* Card styles */
 .card {
-  @apply bg-tabie-card border border-tabie-border rounded-2xl p-4;
+  @apply bg-tabie-card border border-tabie-border rounded-2xl p-5;
+}
+
+/* Focus ring utility for custom interactive elements */
+.focus-ring {
+  @apply focus-visible:ring-2 focus-visible:ring-tabie-primary focus-visible:ring-offset-2 focus-visible:ring-offset-tabie-bg focus-visible:outline-none;
+}
+
+/* Skeleton loading animation */
+.skeleton {
+  @apply bg-tabie-surface rounded-xl animate-pulse;
+}
+
+.skeleton-text {
+  @apply bg-tabie-surface rounded animate-pulse h-4;
+}
+
+.skeleton-circle {
+  @apply bg-tabie-surface rounded-full animate-pulse;
 }
 
 /* Person chip colors */

@@ -117,10 +117,44 @@ export default function GuestCheckout() {
   // Loading state
   if (tabLoading) {
     return (
-      <div className="min-h-screen bg-tabie-bg flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-tabie-primary animate-spin mx-auto mb-4" />
-          <p className="text-tabie-muted">Loading your bill...</p>
+      <div className="min-h-screen bg-tabie-bg pb-8">
+        {/* Skeleton Header */}
+        <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="skeleton-circle w-6 h-6" />
+            <div>
+              <div className="skeleton-text w-32 h-5 mb-1" />
+              <div className="skeleton-text w-40 h-3" />
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-6 space-y-6">
+          {/* Skeleton Total Card */}
+          <div className="card text-center py-6">
+            <div className="skeleton-text w-24 mx-auto mb-2 h-3" />
+            <div className="skeleton-text w-32 mx-auto h-10" />
+          </div>
+
+          {/* Skeleton Breakdown */}
+          <div className="card space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex justify-between">
+                <div className="skeleton-text w-40 h-4" />
+                <div className="skeleton-text w-16 h-4" />
+              </div>
+            ))}
+          </div>
+
+          {/* Skeleton Payment Section */}
+          <div className="card">
+            <div className="skeleton-text w-40 h-5 mb-4" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="skeleton h-16 rounded-xl" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -178,8 +212,8 @@ export default function GuestCheckout() {
           </h1>
           <p className="text-tabie-muted mb-2">
             {participant.paymentStatus === 'confirmed'
-              ? `Your payment of $${getPersonTotal(participantId).toFixed(2)} has been confirmed.`
-              : `Your payment of $${getPersonTotal(participantId).toFixed(2)} is awaiting confirmation from the organizer.`
+              ? <>Your payment of <span className="font-mono">${getPersonTotal(participantId).toFixed(2)}</span> has been confirmed.</>
+              : <>Your payment of <span className="font-mono">${getPersonTotal(participantId).toFixed(2)}</span> is awaiting confirmation from the organizer.</>
             }
           </p>
           {participant.paidVia && (
@@ -229,7 +263,7 @@ export default function GuestCheckout() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-8">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <div className="flex items-center gap-3 mb-4">
           <Receipt className="w-6 h-6 text-tabie-primary" />
           <div>
@@ -345,7 +379,7 @@ export default function GuestCheckout() {
           <div className="card text-center py-6">
             <h3 className="font-semibold text-tabie-text mb-2">Did you complete your payment?</h3>
             <p className="text-tabie-muted text-sm mb-4">
-              If you paid ${myTotal.toFixed(2)} via{' '}
+              If you paid <span className="font-mono">${myTotal.toFixed(2)}</span> via{' '}
               {selectedPaymentMethod?.charAt(0).toUpperCase() + selectedPaymentMethod?.slice(1)},
               confirm below.
             </p>

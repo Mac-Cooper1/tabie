@@ -62,6 +62,20 @@ export default {
           '100%': { opacity: '1' },
         },
       },
+      borderRadius: {
+        'card': '1rem',      // 16px - cards, modals
+        'button': '0.75rem', // 12px - buttons, inputs
+        'chip': '0.5rem',    // 8px - tags, badges
+      },
+      spacing: {
+        'card': '1.25rem',   // 20px - card padding
+        'section': '1.5rem', // 24px - section gaps
+      },
+      transitionDuration: {
+        'fast': '150ms',
+        'normal': '200ms',
+        'slow': '300ms',
+      },
     },
   },
   plugins: [],

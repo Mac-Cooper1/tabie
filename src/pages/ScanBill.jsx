@@ -169,7 +169,7 @@ export default function ScanBill() {
       {/* Header */}
       <button
         onClick={() => navigate('/new-tab')}
-        className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-8"
+        className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-8 focus-ring rounded-lg"
       >
         <ArrowLeft className="w-5 h-5" />
         Back

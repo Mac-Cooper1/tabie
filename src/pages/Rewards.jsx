@@ -42,10 +42,10 @@ export default function Rewards() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-8">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <button
           onClick={() => navigate('/home')}
-          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4"
+          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4 focus-ring rounded-lg"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
@@ -130,7 +130,7 @@ export default function Rewards() {
                       {entry.tabName || 'Tab'}
                     </p>
                     <p className="text-xs text-tabie-muted">
-                      ${entry.subtotal?.toFixed(2)} • {formatDate(entry.earnedAt)}
+                      <span className="font-mono">${entry.subtotal?.toFixed(2)}</span> • {formatDate(entry.earnedAt)}
                     </p>
                   </div>
                   <div className="text-right">

@@ -183,10 +183,10 @@ export default function InvitePeople() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-32">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <button
           onClick={() => navigate('/scan')}
-          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4"
+          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4 focus-ring rounded-lg"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
@@ -326,7 +326,7 @@ export default function InvitePeople() {
             {/* Tip */}
             <div>
               <label className="text-sm text-tabie-muted mb-1.5 block">Tip</label>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {[15, 18, 20, 25].map((pct) => (
                   <button
                     key={pct}
@@ -369,7 +369,7 @@ export default function InvitePeople() {
                 </div>
               )}
               <p className="text-sm text-tabie-muted mt-2 text-center">
-                Tip: ${(tip || 0).toFixed(2)}
+                Tip: <span className="font-mono">${(tip || 0).toFixed(2)}</span>
               </p>
             </div>
 
@@ -417,7 +417,7 @@ export default function InvitePeople() {
           </div>
           {people.length > 0 && (
             <p className="text-sm text-tabie-muted mt-1">
-              ~${(grandTotal / people.length).toFixed(2)} per person (if split equally)
+              ~<span className="font-mono">${(grandTotal / people.length).toFixed(2)}</span> per person (if split equally)
             </p>
           )}
         </div>

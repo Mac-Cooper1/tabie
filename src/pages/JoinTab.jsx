@@ -82,10 +82,34 @@ export default function JoinTab() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-tabie-bg flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-tabie-primary animate-spin mx-auto mb-4" />
-          <p className="text-tabie-muted">Loading tab...</p>
+      <div className="min-h-screen bg-tabie-bg px-6 py-8">
+        {/* Skeleton Header */}
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 skeleton-circle mx-auto mb-4" />
+          <div className="skeleton-text w-48 mx-auto mb-2" />
+          <div className="skeleton-text w-56 mx-auto h-3" />
+        </div>
+
+        {/* Skeleton Tab Info Card */}
+        <div className="card mb-6">
+          <div className="skeleton-text w-40 mb-3 h-5" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="skeleton-text w-16 mb-1 h-3" />
+              <div className="skeleton-text w-20" />
+            </div>
+            <div>
+              <div className="skeleton-text w-16 mb-1 h-3" />
+              <div className="skeleton-text w-24" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Join Form */}
+        <div className="card">
+          <div className="skeleton-text w-48 mb-4 h-5" />
+          <div className="skeleton h-12 mb-4" />
+          <div className="skeleton h-12" />
         </div>
       </div>
     )
@@ -225,7 +249,7 @@ export default function JoinTab() {
             Have an account?{' '}
             <button
               onClick={() => navigate('/auth', { state: { returnTo: `/join/${tabId}` } })}
-              className="text-tabie-primary hover:underline"
+              className="text-tabie-primary hover:underline focus-ring rounded"
             >
               Sign in
             </button>

@@ -54,10 +54,40 @@ export default function Checkout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-tabie-bg flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-tabie-primary animate-spin mx-auto mb-4" />
-          <p className="text-tabie-muted">Loading...</p>
+      <div className="min-h-screen bg-tabie-bg pb-8">
+        {/* Skeleton Header */}
+        <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+          <div className="skeleton-text w-20 h-4 mb-4" />
+          <div className="skeleton-text w-40 h-6" />
+        </div>
+
+        <div className="px-6 py-6 space-y-6">
+          {/* Skeleton Total Card */}
+          <div className="card text-center py-6">
+            <div className="skeleton-text w-24 mx-auto mb-2 h-3" />
+            <div className="skeleton-text w-32 mx-auto h-10" />
+          </div>
+
+          {/* Skeleton Breakdown */}
+          <div className="card space-y-3">
+            <div className="skeleton-text w-32 h-5 mb-4" />
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex justify-between">
+                <div className="skeleton-text w-40 h-4" />
+                <div className="skeleton-text w-16 h-4" />
+              </div>
+            ))}
+          </div>
+
+          {/* Skeleton Payment Section */}
+          <div className="card">
+            <div className="skeleton-text w-40 h-5 mb-4" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="skeleton h-16 rounded-xl" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -179,10 +209,10 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-8">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <button
           onClick={() => navigate(`/tab/${tabId}/select`)}
-          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4"
+          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4 focus-ring rounded-lg"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Items
@@ -317,8 +347,8 @@ export default function Checkout() {
             </h3>
             <p className="text-tabie-muted text-sm">
               {currentParticipant?.paymentStatus === 'confirmed'
-                ? `Your payment of $${myTotal.toFixed(2)} has been confirmed.`
-                : `Your payment of $${myTotal.toFixed(2)} is awaiting confirmation from ${adminName}.`
+                ? <>Your payment of <span className="font-mono">${myTotal.toFixed(2)}</span> has been confirmed.</>
+                : <>Your payment of <span className="font-mono">${myTotal.toFixed(2)}</span> is awaiting confirmation from {adminName}.</>
               }
             </p>
             {currentParticipant?.paidVia && (
@@ -346,7 +376,7 @@ export default function Checkout() {
               <div className="card text-center py-6">
                 <h3 className="font-semibold text-tabie-text mb-2">Did you complete your payment?</h3>
                 <p className="text-tabie-muted text-sm mb-4">
-                  If you paid ${myTotal.toFixed(2)} via{' '}
+                  If you paid <span className="font-mono">${myTotal.toFixed(2)}</span> via{' '}
                   {selectedPaymentMethod?.charAt(0).toUpperCase() + selectedPaymentMethod?.slice(1)},
                   confirm below.
                 </p>

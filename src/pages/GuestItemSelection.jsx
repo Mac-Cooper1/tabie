@@ -59,10 +59,35 @@ export default function GuestItemSelection() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-tabie-bg flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-tabie-primary animate-spin mx-auto mb-4" />
-          <p className="text-tabie-muted">Loading...</p>
+      <div className="min-h-screen bg-tabie-bg pb-32">
+        {/* Skeleton Header */}
+        <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="skeleton-text w-6 h-6" />
+            <div className="skeleton-text w-32 h-5" />
+          </div>
+          <div className="skeleton-text w-48 h-4" />
+        </div>
+
+        {/* Skeleton Items */}
+        <div className="px-6 py-4 space-y-3">
+          <div className="skeleton-text w-56 mb-4 h-3" />
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="card flex items-center gap-4">
+              <div className="flex-1">
+                <div className="skeleton-text w-40 mb-2 h-5" />
+                <div className="skeleton-text w-24 h-3" />
+              </div>
+              <div className="skeleton-text w-16 h-6" />
+            </div>
+          ))}
+        </div>
+
+        {/* Skeleton Bottom Bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-tabie-bg/95 backdrop-blur-lg border-t border-tabie-border p-4">
+          <div className="max-w-[430px] mx-auto">
+            <div className="skeleton h-14 rounded-xl" />
+          </div>
         </div>
       </div>
     )
@@ -210,12 +235,12 @@ export default function GuestItemSelection() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-40">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         {/* Back button for logged-in users */}
         {isAuthenticated && (
           <button
             onClick={() => navigate('/home')}
-            className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-3"
+            className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-3 focus-ring rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
             Back to My Tabs
@@ -231,9 +256,9 @@ export default function GuestItemSelection() {
           </div>
           <button
             onClick={() => setShowSharePanel(!showSharePanel)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-tabie-surface border border-tabie-border text-sm"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-tabie-surface border border-tabie-border text-sm focus-ring"
           >
-            <Users className="w-4 h-4 text-tabie-muted" />
+            <Users className="w-5 h-5 text-tabie-muted" />
             <span className="text-tabie-text">{tab.people?.length || 0}</span>
           </button>
         </div>

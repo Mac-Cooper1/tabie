@@ -155,10 +155,10 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-8">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <button
           onClick={() => navigate('/home')}
-          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4"
+          className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-4 focus-ring rounded-lg"
         >
           <ArrowLeft className="w-5 h-5" />
           Back
@@ -255,7 +255,7 @@ export default function Settings() {
               {venmo && (
                 <button
                   onClick={() => handleTestLink('venmo')}
-                  className="text-xs text-[#008CFF] hover:underline mt-1 flex items-center gap-1"
+                  className="text-xs text-[#008CFF] hover:underline mt-1 flex items-center gap-1 focus-ring rounded"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Test Venmo link
@@ -282,7 +282,7 @@ export default function Settings() {
               {cashapp && (
                 <button
                   onClick={() => handleTestLink('cashapp')}
-                  className="text-xs text-[#00D632] hover:underline mt-1 flex items-center gap-1"
+                  className="text-xs text-[#00D632] hover:underline mt-1 flex items-center gap-1 focus-ring rounded"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Test Cash App link
@@ -312,7 +312,7 @@ export default function Settings() {
               {paypal && (
                 <button
                   onClick={() => handleTestLink('paypal')}
-                  className="text-xs text-[#003087] hover:underline mt-1 flex items-center gap-1"
+                  className="text-xs text-[#003087] hover:underline mt-1 flex items-center gap-1 focus-ring rounded"
                 >
                   <ExternalLink className="w-3 h-3" />
                   Test PayPal link
@@ -380,7 +380,7 @@ export default function Settings() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-full card flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 transition-colors"
+          className="w-full card flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 transition-colors focus-ring"
         >
           <LogOut className="w-5 h-5" />
           Sign Out
@@ -390,14 +390,14 @@ export default function Settings() {
         <div className="flex justify-center gap-4 pt-4">
           <button
             onClick={() => navigate('/privacy')}
-            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors"
+            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors focus-ring rounded"
           >
             Privacy Policy
           </button>
           <span className="text-tabie-muted/50">•</span>
           <button
             onClick={() => navigate('/terms')}
-            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors"
+            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors focus-ring rounded"
           >
             Terms of Service
           </button>

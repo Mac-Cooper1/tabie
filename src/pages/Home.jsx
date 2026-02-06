@@ -72,11 +72,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-tabie-bg pb-24">
       {/* Header */}
-      <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+      <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-tabie-text">
-              Hey, {user?.name?.split(' ')[0] || 'there'} 👋
+              Hey, {user?.name?.split(' ')[0] || 'there'}
             </h1>
             <p className="text-tabie-muted text-sm">Ready to split some bills?</p>
           </div>
@@ -84,16 +84,16 @@ export default function Home() {
             {/* Points badge */}
             <button
               onClick={() => navigate('/rewards')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 transition-colors focus-ring"
             >
-              <Star className="w-4 h-4 fill-current" />
+              <Star className="w-5 h-5 fill-current" />
               <span className="font-semibold text-sm">
                 {(user?.points?.balance || 0).toLocaleString()}
               </span>
             </button>
             <button
               onClick={() => navigate('/settings')}
-              className="w-10 h-10 rounded-full bg-tabie-surface flex items-center justify-center text-tabie-muted hover:text-tabie-text transition-colors"
+              className="w-10 h-10 rounded-full bg-tabie-surface flex items-center justify-center text-tabie-muted hover:text-tabie-text transition-colors focus-ring"
             >
               <Settings className="w-5 h-5" />
             </button>
@@ -104,24 +104,24 @@ export default function Home() {
         <div className="flex gap-2">
           <button
             onClick={() => setActiveFilter('active')}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2 focus-ring ${
               activeFilter === 'active'
                 ? 'bg-tabie-primary text-white'
-                : 'bg-tabie-surface text-tabie-muted'
+                : 'bg-tabie-surface text-tabie-muted hover:text-tabie-text'
             }`}
           >
-            <Clock className="w-4 h-4" />
+            <Clock className="w-5 h-5" />
             Active ({activeTabs.length})
           </button>
           <button
             onClick={() => setActiveFilter('completed')}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2 focus-ring ${
               activeFilter === 'completed'
                 ? 'bg-tabie-primary text-white'
-                : 'bg-tabie-surface text-tabie-muted'
+                : 'bg-tabie-surface text-tabie-muted hover:text-tabie-text'
             }`}
           >
-            <CheckCircle className="w-4 h-4" />
+            <CheckCircle className="w-5 h-5" />
             History ({completedTabs.length})
           </button>
         </div>
@@ -158,7 +158,7 @@ export default function Home() {
                 <div key={tab.id} className="card flex items-center gap-4">
                   <button
                     onClick={() => handleOpenTab(tab)}
-                    className="flex-1 flex items-center gap-4 hover:opacity-80 transition-all active:scale-[0.98]"
+                    className="flex-1 flex items-center gap-4 hover:opacity-80 transition-opacity duration-200 focus-ring rounded-xl"
                   >
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                       tab.status === 'completed' || allPaid
@@ -229,7 +229,7 @@ export default function Home() {
                         await deleteTab(tab.id)
                       }
                     }}
-                    className="p-2 text-tabie-muted hover:text-red-400 transition-colors"
+                    className="p-2 text-tabie-muted hover:text-red-400 transition-colors focus-ring rounded-lg"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -244,9 +244,9 @@ export default function Home() {
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30">
         <button
           onClick={handleNewTab}
-          className="w-16 h-16 rounded-full bg-tabie-primary flex items-center justify-center shadow-lg shadow-tabie-primary/40 hover:scale-110 active:scale-95 transition-transform"
+          className="w-16 h-16 rounded-full bg-tabie-primary flex items-center justify-center shadow-lg shadow-tabie-primary/40 hover:bg-tabie-primary-light active:bg-tabie-primary-dark transition-colors duration-200 focus-ring"
         >
-          <Camera className="w-7 h-7 text-white" />
+          <Camera className="w-6 h-6 text-white" />
         </button>
       </div>
     </div>

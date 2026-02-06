@@ -31,7 +31,7 @@ export default function NewTab() {
       {/* Header */}
       <button
         onClick={() => navigate('/home')}
-        className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-8"
+        className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-8 focus-ring rounded-lg"
       >
         <ArrowLeft className="w-5 h-5" />
         Back
@@ -46,10 +46,10 @@ export default function NewTab() {
         {/* Scan Receipt */}
         <button
           onClick={handleScanReceipt}
-          className="w-full card p-6 flex items-start gap-4 hover:border-tabie-primary/50 transition-all text-left group"
+          className="w-full card flex items-start gap-4 hover:border-tabie-primary/50 transition-colors duration-200 text-left group focus-ring"
         >
-          <div className="w-14 h-14 rounded-2xl bg-tabie-primary/20 flex items-center justify-center group-hover:bg-tabie-primary/30 transition-colors">
-            <Camera className="w-7 h-7 text-tabie-primary" />
+          <div className="w-12 h-12 rounded-xl bg-tabie-primary/20 flex items-center justify-center group-hover:bg-tabie-primary/30 transition-colors">
+            <Camera className="w-6 h-6 text-tabie-primary" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-lg text-tabie-text mb-1">Scan Receipt</h3>
@@ -62,10 +62,10 @@ export default function NewTab() {
         {/* Manual Entry */}
         <button
           onClick={handleManualEntry}
-          className="w-full card p-6 flex items-start gap-4 hover:border-purple-500/50 transition-all text-left group"
+          className="w-full card flex items-start gap-4 hover:border-tabie-primary/50 transition-colors duration-200 text-left group focus-ring"
         >
-          <div className="w-14 h-14 rounded-2xl bg-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
-            <Edit3 className="w-7 h-7 text-purple-500" />
+          <div className="w-12 h-12 rounded-xl bg-tabie-primary/20 flex items-center justify-center group-hover:bg-tabie-primary/30 transition-colors">
+            <Edit3 className="w-6 h-6 text-tabie-primary" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-lg text-tabie-text mb-1">Enter Manually</h3>

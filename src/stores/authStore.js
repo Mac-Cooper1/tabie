@@ -98,7 +98,7 @@ export const useAuthStore = create(
       },
 
       // Sign up with email and password
-      signUp: async (email, password, name, phone = '') => {
+      signUp: async (email, password, name, phone = '', paymentAccounts = null) => {
         set({ loading: true, error: null })
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password)
@@ -107,16 +107,19 @@ export const useAuthStore = create(
           // Update Firebase profile with display name
           await updateProfile(firebaseUser, { displayName: name })
 
+          // Use provided payment accounts or defaults
+          const accounts = paymentAccounts || {
+            venmo: null,
+            cashapp: null,
+            paypal: null
+          }
+
           // Save additional user data to Firestore
           await setDoc(doc(db, 'users', firebaseUser.uid), {
             name,
             email,
             phone,
-            paymentAccounts: {
-              venmo: null,
-              cashapp: null,
-              paypal: null
-            },
+            paymentAccounts: accounts,
             points: {
               balance: 0,
               lifetime: 0,
@@ -133,11 +136,7 @@ export const useAuthStore = create(
               name,
               phone,
               createdAt: new Date().toISOString(),
-              paymentAccounts: {
-                venmo: null,
-                cashapp: null,
-                paypal: null
-              },
+              paymentAccounts: accounts,
               points: {
                 balance: 0,
                 lifetime: 0,
