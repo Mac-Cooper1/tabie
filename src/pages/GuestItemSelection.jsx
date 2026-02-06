@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
 import { useAuthStore } from '../stores/authStore'
-import { confirmPayment, rejectPayment } from '../services/firestore'
+import { confirmPayment, rejectPayment, updateTab, addParticipant, removeParticipant } from '../services/firestore'
 import {
   Receipt,
   Users,
@@ -20,7 +20,15 @@ import {
   CheckCircle2,
   XCircle,
   MessageSquare,
-  ArrowLeft
+  ArrowLeft,
+  Crown,
+  Archive,
+  RotateCcw,
+  AlertTriangle,
+  X,
+  Trash2,
+  Plus,
+  Edit3
 } from 'lucide-react'
 
 export default function GuestItemSelection() {
@@ -38,7 +46,7 @@ export default function GuestItemSelection() {
     getPersonTotal
   } = useTab(tabId)
 
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
 
   const [expandedItem, setExpandedItem] = useState(null)
   const [showSharePanel, setShowSharePanel] = useState(false)
@@ -46,6 +54,14 @@ export default function GuestItemSelection() {
   const [copied, setCopied] = useState(false)
   const [confirmingPayment, setConfirmingPayment] = useState(null)
   const [sendingReminder, setSendingReminder] = useState(null)
+  const [showCloseModal, setShowCloseModal] = useState(false)
+  const [closingTab, setClosingTab] = useState(false)
+  const [assigningItem, setAssigningItem] = useState(null) // For admin item assignment
+  const [showEditPeopleModal, setShowEditPeopleModal] = useState(false)
+  const [newPersonName, setNewPersonName] = useState('')
+  const [newPersonPhone, setNewPersonPhone] = useState('')
+  const [addingPerson, setAddingPerson] = useState(false)
+  const [removingPerson, setRemovingPerson] = useState(null)
 
   // Get current participant from localStorage
   const participantId = localStorage.getItem(`tabie_participant_${tabId}`)
@@ -106,15 +122,28 @@ export default function GuestItemSelection() {
   }
 
   const currentParticipant = tab.people?.find(p => p.id === participantId)
-  const isAdmin = tab.people?.[0]?.id === participantId // First person is the admin
+  // Admin is the user who created the tab (using createdBy field)
+  const isAdmin = user?.id && tab.createdBy === user.id
   const myTotal = getPersonTotal(participantId)
   const myItems = tab.items?.filter(item => item.assignedTo?.includes(participantId)) || []
+  const isTabClosed = tab.status === 'closed' || tab.status === 'completed'
 
   // Payment tracking stats (for admin)
   const confirmedCount = tab.people?.filter(p => p.paymentStatus === 'confirmed').length || 0
   const claimedCount = tab.people?.filter(p => p.paymentStatus === 'claimed').length || 0
   const pendingCount = tab.people?.filter(p => !p.paymentStatus || p.paymentStatus === 'pending').length || 0
   const totalPeople = tab.people?.length || 0
+
+  // Unassigned items tracking
+  const unassignedItems = tab.items?.filter(item => !item.assignedTo || item.assignedTo.length === 0) || []
+  const unassignedCount = unassignedItems.length
+
+  // Calculate outstanding amount for close tab confirmation
+  const billTotal = (tab.subtotal || 0) + (tab.tax || 0) + (tab.tip || 0)
+  const totalCollected = tab.people
+    ?.filter(p => p.paymentStatus === 'confirmed')
+    .reduce((sum, p) => sum + getPersonTotal(p.id), 0) || 0
+  const outstandingAmount = billTotal - totalCollected
 
   // Handle confirming a payment claim
   const handleConfirmPayment = async (personId) => {
@@ -191,6 +220,128 @@ export default function GuestItemSelection() {
     }
   }
 
+  // Handle admin directly marking someone as paid (without them claiming first)
+  const handleMarkAsPaid = async (personId) => {
+    setConfirmingPayment(personId)
+    try {
+      await confirmPayment(tabId, personId)
+    } catch (err) {
+      console.error('Error marking as paid:', err)
+      alert('Failed to mark as paid. Please try again.')
+    } finally {
+      setConfirmingPayment(null)
+    }
+  }
+
+  // Handle admin marking someone as unpaid
+  const handleMarkAsUnpaid = async (personId) => {
+    setConfirmingPayment(personId)
+    try {
+      await rejectPayment(tabId, personId)
+    } catch (err) {
+      console.error('Error marking as unpaid:', err)
+      alert('Failed to mark as unpaid. Please try again.')
+    } finally {
+      setConfirmingPayment(null)
+    }
+  }
+
+  // Handle closing the tab
+  const handleCloseTab = async () => {
+    setClosingTab(true)
+    try {
+      await updateTab(tabId, {
+        status: 'closed',
+        closedAt: new Date().toISOString()
+      })
+      setShowCloseModal(false)
+    } catch (err) {
+      console.error('Error closing tab:', err)
+      alert('Failed to close tab. Please try again.')
+    } finally {
+      setClosingTab(false)
+    }
+  }
+
+  // Handle reopening the tab
+  const handleReopenTab = async () => {
+    try {
+      await updateTab(tabId, {
+        status: 'open',
+        closedAt: null
+      })
+    } catch (err) {
+      console.error('Error reopening tab:', err)
+      alert('Failed to reopen tab. Please try again.')
+    }
+  }
+
+  // Handle admin assigning an item to a specific person
+  const handleAdminAssignItem = async (itemId, personId, share = 1) => {
+    try {
+      await setSplitShare(itemId, personId, share)
+    } catch (err) {
+      console.error('Error assigning item:', err)
+    }
+  }
+
+  // Generate a random color for new participants
+  const generateColor = () => {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9']
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
+
+  // Handle adding a new person
+  const handleAddPerson = async (e) => {
+    e.preventDefault()
+    if (!newPersonName.trim()) return
+
+    setAddingPerson(true)
+    try {
+      const newPerson = {
+        id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: newPersonName.trim(),
+        phone: newPersonPhone.trim() || null,
+        color: generateColor(),
+        isAdmin: false,
+        paymentStatus: 'pending',
+        paid: false
+      }
+      await addParticipant(tabId, newPerson)
+      setNewPersonName('')
+      setNewPersonPhone('')
+    } catch (err) {
+      console.error('Error adding person:', err)
+      alert('Failed to add person. Please try again.')
+    } finally {
+      setAddingPerson(false)
+    }
+  }
+
+  // Handle removing a person
+  const handleRemovePerson = async (personId) => {
+    // Don't allow removing yourself (the admin)
+    if (personId === participantId) {
+      alert("You can't remove yourself from the tab.")
+      return
+    }
+
+    const person = tab.people?.find(p => p.id === personId)
+    if (!confirm(`Remove ${person?.name} from this tab? This will also remove their item assignments.`)) {
+      return
+    }
+
+    setRemovingPerson(personId)
+    try {
+      await removeParticipant(tabId, personId)
+    } catch (err) {
+      console.error('Error removing person:', err)
+      alert('Failed to remove person. Please try again.')
+    } finally {
+      setRemovingPerson(null)
+    }
+  }
+
   // Calculate my subtotal (before tax/tip)
   let mySubtotal = 0
   myItems.forEach(item => {
@@ -249,7 +400,21 @@ export default function GuestItemSelection() {
 
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-xl font-bold text-tabie-text">{tab.restaurantName || 'Bill Split'}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-tabie-text">{tab.restaurantName || 'Bill Split'}</h1>
+              {isAdmin && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-tabie-primary/20 text-tabie-primary text-xs font-medium">
+                  <Crown className="w-3 h-3" />
+                  Admin
+                </span>
+              )}
+              {isTabClosed && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-tabie-surface text-tabie-muted text-xs font-medium">
+                  <Archive className="w-3 h-3" />
+                  Closed
+                </span>
+              )}
+            </div>
             <p className="text-sm text-tabie-muted">
               {isAdmin ? 'Manage your tab' : `Hi ${currentParticipant?.name}! Select what you had`}
             </p>
@@ -262,6 +427,21 @@ export default function GuestItemSelection() {
             <span className="text-tabie-text">{tab.people?.length || 0}</span>
           </button>
         </div>
+
+        {/* Unassigned items warning (admin only) */}
+        {isAdmin && unassignedCount > 0 && !isTabClosed && (
+          <div className="mt-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-500">
+                {unassignedCount} item{unassignedCount > 1 ? 's' : ''} unassigned
+              </p>
+              <p className="text-xs text-yellow-500/70">
+                Tap items below to assign them to people (or let them choose themselves)
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Live participants */}
         <div className="flex items-center gap-2 mt-3">
@@ -280,13 +460,22 @@ export default function GuestItemSelection() {
             ))}
           </div>
           {isAdmin && (
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tabie-primary/20 text-tabie-primary text-sm font-medium"
-            >
-              <Share2 className="w-4 h-4" />
-              Invite
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowEditPeopleModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tabie-surface border border-tabie-border text-tabie-text text-sm font-medium hover:bg-tabie-border transition-colors"
+              >
+                <Edit3 className="w-4 h-4" />
+                Edit
+              </button>
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tabie-primary/20 text-tabie-primary text-sm font-medium"
+              >
+                <Share2 className="w-4 h-4" />
+                Invite
+              </button>
+            </div>
           )}
         </div>
 
@@ -426,7 +615,7 @@ export default function GuestItemSelection() {
 
                       {/* Action buttons for admin */}
                       {!isCurrentUser && (
-                        <div className="mt-2 ml-10 flex gap-2">
+                        <div className="mt-2 ml-10 flex flex-wrap gap-2">
                           {person.paymentStatus === 'claimed' && (
                             <>
                               <button
@@ -452,24 +641,46 @@ export default function GuestItemSelection() {
                             </>
                           )}
                           {(!person.paymentStatus || person.paymentStatus === 'pending') && (
-                            <button
-                              onClick={() => handleSendReminder(person)}
-                              disabled={sendingReminder === person.id}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-primary/20 text-tabie-primary text-xs font-medium disabled:opacity-50"
-                            >
-                              {sendingReminder === person.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <MessageSquare className="w-3 h-3" />
-                              )}
-                              Send Reminder
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleMarkAsPaid(person.id)}
+                                disabled={confirmingPayment === person.id}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-medium disabled:opacity-50"
+                              >
+                                {confirmingPayment === person.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-3 h-3" />
+                                )}
+                                Mark Paid
+                              </button>
+                              <button
+                                onClick={() => handleSendReminder(person)}
+                                disabled={sendingReminder === person.id}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-primary/20 text-tabie-primary text-xs font-medium disabled:opacity-50"
+                              >
+                                {sendingReminder === person.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <MessageSquare className="w-3 h-3" />
+                                )}
+                                Nudge
+                              </button>
+                            </>
                           )}
                           {person.paymentStatus === 'confirmed' && (
-                            <span className="text-xs text-green-500 flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" />
-                              Payment received
-                            </span>
+                            <button
+                              onClick={() => handleMarkAsUnpaid(person.id)}
+                              disabled={confirmingPayment === person.id}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-surface text-tabie-muted text-xs font-medium hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50"
+                            >
+                              {confirmingPayment === person.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <XCircle className="w-3 h-3" />
+                              )}
+                              Mark Unpaid
+                            </button>
                           )}
                         </div>
                       )}
@@ -480,7 +691,203 @@ export default function GuestItemSelection() {
             )}
           </div>
         )}
+
+        {/* Close/Reopen Tab Section (Admin only) */}
+        {isAdmin && (
+          <div className="mt-4">
+            {isTabClosed ? (
+              <button
+                onClick={handleReopenTab}
+                className="w-full p-3 rounded-xl border border-tabie-border bg-tabie-card flex items-center justify-center gap-2 text-tabie-primary hover:bg-tabie-primary/10 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span className="font-medium">Reopen Tab</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowCloseModal(true)}
+                className="w-full p-3 rounded-xl border border-tabie-border bg-tabie-card flex items-center justify-center gap-2 text-tabie-muted hover:text-red-400 hover:border-red-500/30 transition-colors"
+              >
+                <Archive className="w-4 h-4" />
+                <span className="font-medium">Close Tab</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Close Tab Confirmation Modal */}
+      {showCloseModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-tabie-card border border-tabie-border rounded-2xl p-6 max-w-sm w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-tabie-text">Close Tab?</h3>
+              <button
+                onClick={() => setShowCloseModal(false)}
+                className="p-1 rounded-lg hover:bg-tabie-surface text-tabie-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {outstandingAmount > 0 && (
+              <div className="p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 mb-4">
+                <div className="flex items-center gap-2 text-yellow-500 mb-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="font-medium text-sm">Outstanding balance</span>
+                </div>
+                <p className="text-2xl font-bold font-mono text-yellow-500">
+                  ${outstandingAmount.toFixed(2)}
+                </p>
+                <p className="text-xs text-yellow-500/70 mt-1">
+                  {pendingCount} guest{pendingCount !== 1 ? 's' : ''} still unpaid
+                </p>
+              </div>
+            )}
+
+            <p className="text-tabie-muted text-sm mb-4">
+              {outstandingAmount > 0
+                ? 'Are you sure you want to close this tab? You can reopen it later if needed.'
+                : 'All payments collected! Close this tab to archive it.'}
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseModal(false)}
+                className="flex-1 btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseTab}
+                disabled={closingTab}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {closingTab ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Archive className="w-4 h-4" />
+                )}
+                Close Tab
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit People Modal (Admin only) */}
+      {showEditPeopleModal && isAdmin && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-tabie-card border border-tabie-border rounded-2xl p-6 max-w-sm w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-tabie-text">Edit People</h3>
+              <button
+                onClick={() => setShowEditPeopleModal(false)}
+                className="p-1 rounded-lg hover:bg-tabie-surface text-tabie-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Add new person form */}
+            <form onSubmit={handleAddPerson} className="mb-4 p-3 rounded-xl bg-tabie-surface border border-tabie-border">
+              <p className="text-xs text-tabie-muted mb-2 font-medium">Add a person</p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Name"
+                  value={newPersonName}
+                  onChange={(e) => setNewPersonName(e.target.value)}
+                  className="w-full bg-tabie-bg rounded-lg px-3 py-2 text-sm text-tabie-text placeholder-tabie-muted border border-tabie-border focus:outline-none focus:ring-2 focus:ring-tabie-primary/50"
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone (optional)"
+                  value={newPersonPhone}
+                  onChange={(e) => setNewPersonPhone(e.target.value)}
+                  className="w-full bg-tabie-bg rounded-lg px-3 py-2 text-sm text-tabie-text placeholder-tabie-muted border border-tabie-border focus:outline-none focus:ring-2 focus:ring-tabie-primary/50"
+                />
+                <button
+                  type="submit"
+                  disabled={!newPersonName.trim() || addingPerson}
+                  className="w-full flex items-center justify-center gap-2 bg-tabie-primary text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 transition-colors hover:bg-tabie-primary/90"
+                >
+                  {addingPerson ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  Add Person
+                </button>
+              </div>
+            </form>
+
+            {/* People list */}
+            <div className="flex-1 overflow-y-auto space-y-2">
+              <p className="text-xs text-tabie-muted font-medium">
+                People on this tab ({tab.people?.length || 0})
+              </p>
+              {tab.people?.map((person) => {
+                const isCurrentUser = person.id === participantId
+                const personTotal = getPersonTotal(person.id)
+                const statusInfo = getPaymentStatusInfo(person)
+
+                return (
+                  <div
+                    key={person.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-tabie-surface"
+                  >
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                      style={{ backgroundColor: person.color + '30', color: person.color }}
+                    >
+                      {person.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-tabie-text truncate">
+                          {person.name}
+                        </p>
+                        {isCurrentUser && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-tabie-primary/20 text-tabie-primary flex-shrink-0">
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-tabie-muted">
+                        <span className="font-mono">${personTotal.toFixed(2)}</span>
+                        <span>•</span>
+                        <span className={statusInfo.color}>{statusInfo.label}</span>
+                      </div>
+                    </div>
+                    {!isCurrentUser && (
+                      <button
+                        onClick={() => handleRemovePerson(person.id)}
+                        disabled={removingPerson === person.id}
+                        className="p-2 rounded-lg hover:bg-red-500/20 text-tabie-muted hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        {removingPerson === person.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Done button */}
+            <button
+              onClick={() => setShowEditPeopleModal(false)}
+              className="mt-4 w-full btn-secondary"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Items list */}
       <div className="px-6 py-4 space-y-3">
@@ -535,8 +942,10 @@ export default function GuestItemSelection() {
               return `${Math.round(myQty * 100)}%`
             }
 
+            const isUnassigned = !item.assignedTo || item.assignedTo.length === 0
+
             return (
-              <div key={item.id} className="card">
+              <div key={item.id} className={`card ${isAdmin && isUnassigned ? 'border-yellow-500/50 bg-yellow-500/5' : ''}`}>
                 <div
                   onClick={() => setExpandedItem(isExpanded ? null : item.id)}
                   className={`flex items-center gap-3 cursor-pointer ${!canClaim && !isMyItem ? 'opacity-50' : ''}`}
@@ -565,6 +974,11 @@ export default function GuestItemSelection() {
 
                     {/* Show split status */}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {isAdmin && isUnassigned && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-500">
+                          Tap to assign
+                        </span>
+                      )}
                       {isMyItem && (
                         <span
                           className="text-xs px-2 py-0.5 rounded-full"
@@ -733,8 +1147,53 @@ export default function GuestItemSelection() {
                       </div>
                     )}
 
-                    {/* Who's splitting this */}
-                    {numClaimers > 0 && (
+                    {/* Admin: Assign to specific people */}
+                    {isAdmin && !isTabClosed && (
+                      <div className="mt-3 pt-3 border-t border-tabie-border">
+                        <p className="text-xs text-tabie-muted mb-2 flex items-center gap-1">
+                          <Crown className="w-3 h-3 text-tabie-primary" />
+                          Assign to people:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {tab.people?.map(person => {
+                            const isAssigned = item.assignedTo?.includes(person.id)
+                            const personQty = item.assignments?.[person.id] || 0
+                            return (
+                              <button
+                                key={person.id}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (isAssigned) {
+                                    // Remove assignment
+                                    handleAdminAssignItem(item.id, person.id, 0)
+                                  } else {
+                                    // Add assignment (1 for single items, 1 unit for multi-qty)
+                                    handleAdminAssignItem(item.id, person.id, item.quantity === 1 ? 1 : 1)
+                                  }
+                                }}
+                                className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${
+                                  isAssigned
+                                    ? 'ring-2 ring-offset-1 ring-offset-tabie-bg'
+                                    : 'opacity-50 hover:opacity-100'
+                                }`}
+                                style={{
+                                  backgroundColor: person.color + '30',
+                                  color: person.color,
+                                  ringColor: isAssigned ? person.color : 'transparent'
+                                }}
+                              >
+                                {isAssigned && <Check className="w-3 h-3" />}
+                                {person.name}
+                                {person.id === participantId && ' (you)'}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Who's splitting this (read-only for guests) */}
+                    {!isAdmin && numClaimers > 0 && (
                       <div className="mt-3 pt-3 border-t border-tabie-border">
                         <p className="text-xs text-tabie-muted mb-2">Who's paying:</p>
                         <div className="flex flex-wrap gap-2">

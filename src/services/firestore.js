@@ -142,6 +142,42 @@ export async function addParticipant(tabId, participant) {
 }
 
 /**
+ * Remove a participant from a tab
+ * @param {string} tabId
+ * @param {string} participantId - The ID of the participant to remove
+ */
+export async function removeParticipant(tabId, participantId) {
+  const tabRef = doc(db, TABS_COLLECTION, tabId)
+  const tabSnap = await getDoc(tabRef)
+
+  if (!tabSnap.exists()) {
+    throw new Error('Tab not found')
+  }
+
+  const tab = tabSnap.data()
+  const updatedPeople = tab.people.filter(p => p.id !== participantId)
+
+  // Also remove this person's assignments from all items
+  const updatedItems = tab.items?.map(item => {
+    const newAssignedTo = item.assignedTo?.filter(id => id !== participantId) || []
+    const newAssignments = { ...(item.assignments || {}) }
+    delete newAssignments[participantId]
+
+    return {
+      ...item,
+      assignedTo: newAssignedTo,
+      assignments: newAssignments
+    }
+  }) || []
+
+  await updateDoc(tabRef, {
+    people: updatedPeople,
+    items: updatedItems,
+    updatedAt: serverTimestamp()
+  })
+}
+
+/**
  * Update item assignments in a tab
  * @param {string} tabId
  * @param {Array} items - Updated items array

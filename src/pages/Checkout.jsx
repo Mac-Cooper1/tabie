@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
+import { useAuthStore } from '../stores/authStore'
 import { claimPayment } from '../services/firestore'
 import {
   ArrowLeft,
@@ -35,6 +36,7 @@ export default function Checkout() {
   const navigate = useNavigate()
   const { tabId } = useParams()
   const { tab, loading, error, getPersonTotal } = useTab(tabId)
+  const { user } = useAuthStore()
 
   // Get current participant from localStorage
   const participantId = localStorage.getItem(`tabie_participant_${tabId}`)
@@ -106,7 +108,8 @@ export default function Checkout() {
   }
 
   const currentParticipant = tab.people?.find(p => p.id === participantId)
-  const isAdmin = tab.people?.[0]?.id === participantId
+  // Admin is the user who created the tab (using createdBy field)
+  const isAdmin = user?.id && tab.createdBy === user.id
   const myTotal = getPersonTotal(participantId)
   const myItems = tab.items?.filter(item => item.assignedTo?.includes(participantId)) || []
 
