@@ -49,7 +49,7 @@ export default function Terms() {
               <p><strong className="text-white">Message Frequency:</strong> Varies based on bill activity. Users may receive initial notifications and payment reminders.</p>
               <p><strong className="text-white">Message & Data Rates:</strong> Standard message and data rates may apply.</p>
               <p><strong className="text-white">Opt-Out:</strong> Reply <strong>STOP</strong> to unsubscribe from messages.</p>
-              <p><strong className="text-white">Help:</strong> Reply <strong>HELP</strong> for assistance or contact support@trytabie.com.</p>
+              <p><strong className="text-white">Help:</strong> Reply <strong>HELP</strong> for assistance or contact mac.cooper002@gmail.com.</p>
             </div>
           </section>
 
@@ -92,7 +92,7 @@ export default function Terms() {
           <section>
             <h2 className="text-white font-semibold text-base mb-3">Contact</h2>
             <p>
-              For questions about these Terms, contact us at support@trytabie.com.
+              For questions about these Terms, contact us at mac.cooper002@gmail.com.
             </p>
           </section>
 

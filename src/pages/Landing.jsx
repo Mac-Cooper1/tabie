@@ -114,6 +114,23 @@ export default function Landing() {
             />
           ))}
         </div>
+
+        {/* Legal Links */}
+        <div className="flex justify-center gap-4 mt-6">
+          <button
+            onClick={() => navigate('/privacy')}
+            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors"
+          >
+            Privacy Policy
+          </button>
+          <span className="text-tabie-muted/50">•</span>
+          <button
+            onClick={() => navigate('/terms')}
+            className="text-xs text-tabie-muted hover:text-tabie-text transition-colors"
+          >
+            Terms of Service
+          </button>
+        </div>
       </div>
     </div>
   )

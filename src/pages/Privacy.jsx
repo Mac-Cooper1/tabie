@@ -111,7 +111,7 @@ export default function Privacy() {
           <section>
             <h2 className="text-white font-semibold text-base mb-3">Contact Us</h2>
             <p>
-              If you have questions about this Privacy Policy, please contact us at support@trytabie.com.
+              If you have questions about this Privacy Policy, please contact us at mac.cooper002@gmail.com.
             </p>
           </section>
 
