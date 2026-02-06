@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
+import { useAuthStore } from '../stores/authStore'
 import { confirmPayment, rejectPayment } from '../services/firestore'
 import {
   Receipt,
@@ -18,7 +19,8 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  MessageSquare
+  MessageSquare,
+  ArrowLeft
 } from 'lucide-react'
 
 export default function GuestItemSelection() {
@@ -35,6 +37,8 @@ export default function GuestItemSelection() {
     setSplitShare,
     getPersonTotal
   } = useTab(tabId)
+
+  const { isAuthenticated } = useAuthStore()
 
   const [expandedItem, setExpandedItem] = useState(null)
   const [showSharePanel, setShowSharePanel] = useState(false)
@@ -207,11 +211,22 @@ export default function GuestItemSelection() {
     <div className="min-h-screen bg-tabie-bg pb-40">
       {/* Header */}
       <div className="sticky top-0 bg-tabie-bg/90 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
+        {/* Back button for logged-in users */}
+        {isAuthenticated && (
+          <button
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-2 text-tabie-muted hover:text-tabie-text transition-colors mb-3"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back to My Tabs
+          </button>
+        )}
+
         <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-xl font-bold text-tabie-text">{tab.restaurantName || 'Bill Split'}</h1>
             <p className="text-sm text-tabie-muted">
-              Hi {currentParticipant?.name}! Select what you had
+              {isAdmin ? 'Manage your tab' : `Hi ${currentParticipant?.name}! Select what you had`}
             </p>
           </div>
           <button
@@ -730,36 +745,94 @@ export default function GuestItemSelection() {
       {/* Bottom summary */}
       <div className="fixed bottom-0 left-0 right-0 bg-tabie-bg/95 backdrop-blur-lg border-t border-tabie-border">
         <div className="max-w-[430px] mx-auto p-4">
-          {/* Breakdown */}
-          <div className="space-y-1 mb-3 text-sm">
-            <div className="flex justify-between text-tabie-muted">
-              <span>Your items ({myItems.length})</span>
-              <span className="font-mono">${mySubtotal.toFixed(2)}</span>
-            </div>
-            {myTaxTipShare > 0 && (
-              <div className="flex justify-between text-tabie-muted">
-                <span>Tax & tip share</span>
-                <span className="font-mono">${myTaxTipShare.toFixed(2)}</span>
-              </div>
-            )}
-          </div>
+          {isAdmin ? (
+            /* Admin view - show what others owe */
+            (() => {
+              const billTotal = (tab.subtotal || 0) + (tab.tax || 0) + (tab.tip || 0)
+              const adminTotal = getPersonTotal(participantId)
+              const amountOwedToAdmin = billTotal - adminTotal
+              const amountCollected = tab.people
+                ?.filter(p => p.id !== participantId && p.paymentStatus === 'confirmed')
+                .reduce((sum, p) => sum + getPersonTotal(p.id), 0) || 0
+              const amountPending = amountOwedToAdmin - amountCollected
+              const guestsCount = (tab.people?.length || 1) - 1
+              const paidGuestsCount = tab.people?.filter(p => p.id !== participantId && p.paymentStatus === 'confirmed').length || 0
 
-          {/* Total */}
-          <div className="flex items-center justify-between py-3 border-t border-tabie-border">
-            <div>
-              <p className="text-sm text-tabie-muted">Your Total</p>
-              <p className="text-2xl font-bold text-tabie-primary font-mono">
-                ${myTotal.toFixed(2)}
-              </p>
-            </div>
-            <button
-              className="btn-primary flex items-center gap-2"
-              onClick={() => navigate(`/checkout/${tabId}`)}
-            >
-              <DollarSign className="w-4 h-4" />
-              Pay Now
-            </button>
-          </div>
+              return (
+                <>
+                  <div className="space-y-1 mb-3 text-sm">
+                    <div className="flex justify-between text-tabie-muted">
+                      <span>Bill total</span>
+                      <span className="font-mono">${billTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-tabie-muted">
+                      <span>Your share</span>
+                      <span className="font-mono">-${adminTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-green-500">
+                      <span>Collected ({paidGuestsCount}/{guestsCount})</span>
+                      <span className="font-mono">${amountCollected.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between py-3 border-t border-tabie-border">
+                    <div>
+                      <p className="text-sm text-tabie-muted">Still Owed</p>
+                      <p className={`text-2xl font-bold font-mono ${amountPending > 0 ? 'text-yellow-500' : 'text-green-500'}`}>
+                        ${amountPending.toFixed(2)}
+                      </p>
+                    </div>
+                    {amountPending > 0 ? (
+                      <button
+                        onClick={() => setShowPaymentPanel(true)}
+                        className="btn-secondary flex items-center gap-2"
+                      >
+                        <Users className="w-4 h-4" />
+                        View Payments
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-500">
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span className="font-medium">All Settled!</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )
+            })()
+          ) : (
+            /* Guest view - show their total and pay button */
+            <>
+              <div className="space-y-1 mb-3 text-sm">
+                <div className="flex justify-between text-tabie-muted">
+                  <span>Your items ({myItems.length})</span>
+                  <span className="font-mono">${mySubtotal.toFixed(2)}</span>
+                </div>
+                {myTaxTipShare > 0 && (
+                  <div className="flex justify-between text-tabie-muted">
+                    <span>Tax & tip share</span>
+                    <span className="font-mono">${myTaxTipShare.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between py-3 border-t border-tabie-border">
+                <div>
+                  <p className="text-sm text-tabie-muted">Your Total</p>
+                  <p className="text-2xl font-bold text-tabie-primary font-mono">
+                    ${myTotal.toFixed(2)}
+                  </p>
+                </div>
+                <button
+                  className="btn-primary flex items-center gap-2"
+                  onClick={() => navigate(`/checkout/${tabId}`)}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Pay Now
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

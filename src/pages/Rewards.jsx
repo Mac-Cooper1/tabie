@@ -88,7 +88,7 @@ export default function Rewards() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-tabie-primary">2.</span>
-              <span>Earn points when everyone pays you back (6.7 pts per $1)</span>
+              <span>Earn points when everyone pays you back</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-tabie-primary">3.</span>
