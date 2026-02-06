@@ -15,6 +15,8 @@ import GuestCheckout from './pages/GuestCheckout'
 import PaymentSuccess from './pages/PaymentSuccess'
 import Settings from './pages/Settings'
 import Rewards from './pages/Rewards'
+import Privacy from './pages/Privacy'
+import Terms from './pages/Terms'
 
 // Protected route wrapper
 function ProtectedRoute({ children }) {
@@ -57,6 +59,8 @@ export default function App() {
         <Route path="/checkout/:tabId" element={<Checkout />} />
         <Route path="/pay/:tabId/:participantId" element={<GuestCheckout />} />
         <Route path="/pay/success" element={<PaymentSuccess />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
         {/* Protected routes for authenticated users */}
         <Route
