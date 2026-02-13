@@ -144,11 +144,11 @@ export default function Checkout() {
     const restaurantName = tab.restaurantName || 'Bill Split'
     const guestName = currentParticipant?.name || 'Guest'
 
-    const note = encodeURIComponent(`${restaurantName} - ${guestName} via Tabie`)
+    const note = encodeURIComponent(`${restaurantName} - ${guestName} via trytabie.com`)
 
     return {
       venmo: venmo
-        ? `https://venmo.com/${venmo}?txn=pay&amount=${amount.toFixed(2)}&note=${note}&audience=private`
+        ? `https://venmo.com/${venmo}?txn=pay&amount=${amount.toFixed(2)}&note=${note}&audience=public`
         : null,
       cashapp: cashapp
         ? `https://cash.app/$${cashapp}/${amount.toFixed(2)}`

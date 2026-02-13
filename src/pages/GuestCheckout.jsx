@@ -58,11 +58,11 @@ export default function GuestCheckout() {
     const participant = tab.people?.find(p => p.id === participantId)
     const guestName = participant?.name || 'Guest'
 
-    const note = encodeURIComponent(`${restaurantName} - ${guestName} via Tabie`)
+    const note = encodeURIComponent(`${restaurantName} - ${guestName} via trytabie.com`)
 
     return {
       venmo: venmo
-        ? `https://venmo.com/${venmo}?txn=pay&amount=${amount.toFixed(2)}&note=${note}&audience=private`
+        ? `https://venmo.com/${venmo}?txn=pay&amount=${amount.toFixed(2)}&note=${note}&audience=public`
         : null,
       cashapp: cashapp
         ? `https://cash.app/$${cashapp}/${amount.toFixed(2)}`
