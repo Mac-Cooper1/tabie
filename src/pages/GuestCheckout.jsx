@@ -255,7 +255,7 @@ export default function GuestCheckout() {
     myTaxShare = (tab.tax || 0) / tab.people.length
     myTipShare = (tab.tip || 0) / tab.people.length
   } else if (tab.subtotal > 0) {
-    const proportion = mySubtotal / tab.subtotal
+    const proportion = Math.min(mySubtotal / tab.subtotal, 1.0)
     myTaxShare = (tab.tax || 0) * proportion
     myTipShare = (tab.tip || 0) * proportion
   }

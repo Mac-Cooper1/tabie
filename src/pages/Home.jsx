@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Settings,
   Trash2,
-  Link,
   Star
 } from 'lucide-react'
 
@@ -21,6 +20,7 @@ export default function Home() {
   const { tabs, setCurrentTab, createTab, deleteTab } = useBillStore()
 
   const [activeFilter, setActiveFilter] = useState('active')
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
 
   const activeTabs = tabs.filter(t => t.status === 'active' || t.status === 'pending' || t.status === 'open' || t.status === 'setup')
   const completedTabs = tabs.filter(t => t.status === 'completed')
@@ -31,6 +31,46 @@ export default function Home() {
     const paidCount = people.filter(p => p.paymentStatus === 'confirmed').length
     const claimedCount = people.filter(p => p.paymentStatus === 'claimed').length
     return { paidCount, claimedCount, total: people.length }
+  }
+
+  // Compute meaningful status for a tab
+  const getTabStatus = (tab) => {
+    const isPublished = !!tab.firestoreId
+    const people = tab.people || []
+    const items = tab.items || []
+    const totalPeople = people.length
+    const paidCount = people.filter(p => p.paymentStatus === 'confirmed').length
+    const allPaid = paidCount === totalPeople && totalPeople > 0
+
+    // Settled
+    if (tab.status === 'completed' || tab.status === 'closed' || allPaid) {
+      return { label: 'Settled', color: 'text-green-400', bg: 'bg-green-500/20' }
+    }
+
+    // Draft
+    if (!isPublished || tab.status === 'setup') {
+      return { label: 'Draft', color: 'text-orange-400', bg: 'bg-orange-500/20' }
+    }
+
+    // Payment tracking
+    if (paidCount > 0) {
+      return { label: `${paidCount}/${totalPeople} paid`, color: 'text-tabie-primary', bg: 'bg-tabie-primary/20' }
+    }
+
+    // Item assignment tracking
+    const assignedItems = items.filter(item => item.assignedTo?.length > 0)
+    const totalItems = items.length
+
+    if (totalItems > 0 && assignedItems.length === totalItems) {
+      return { label: 'Fully assigned', color: 'text-tabie-primary', bg: 'bg-tabie-primary/20' }
+    }
+
+    if (assignedItems.length > 0) {
+      return { label: `${assignedItems.length}/${totalItems} claimed`, color: 'text-yellow-400', bg: 'bg-yellow-500/20' }
+    }
+
+    // No items assigned yet
+    return { label: 'Waiting for claims', color: 'text-yellow-400', bg: 'bg-yellow-500/20' }
   }
 
   const displayedTabs = activeFilter === 'active' ? activeTabs : completedTabs
@@ -154,20 +194,21 @@ export default function Home() {
               const { paidCount, claimedCount, total } = getPaymentProgress(tab)
               const allPaid = paidCount === total && total > 0
 
+              const status = getTabStatus(tab)
+
               return (
                 <div key={tab.id} className="card flex items-center gap-4">
                   <button
                     onClick={() => handleOpenTab(tab)}
                     className="flex-1 flex items-center gap-4 hover:opacity-80 transition-opacity duration-200 focus-ring rounded-xl"
                   >
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                      tab.status === 'completed' || allPaid
-                        ? 'bg-green-500/20 text-green-400'
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${status.bg} ${status.color}`}>
+                      {tab.status === 'completed' || (paidCount === total && total > 0)
+                        ? <CheckCircle className="w-6 h-6" />
                         : isPublished
-                        ? 'bg-tabie-primary/20 text-tabie-primary'
-                        : 'bg-orange-500/20 text-orange-400'
-                    }`}>
-                      {isPublished ? <Link className="w-6 h-6" /> : <Receipt className="w-6 h-6" />}
+                          ? <span className="text-lg font-bold">{(tab.restaurantName || 'T')[0]}</span>
+                          : <Receipt className="w-6 h-6" />
+                      }
                     </div>
 
                     <div className="flex-1 text-left">
@@ -179,43 +220,24 @@ export default function Home() {
                         <span>•</span>
                         <span>{total || 0} people</span>
                       </div>
-                      {/* Payment progress badge for published tabs */}
-                      {isPublished && total > 0 && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className={`text-xs px-2 py-0.5 rounded-full ${
-                            allPaid
-                              ? 'bg-green-500/20 text-green-500'
-                              : claimedCount > 0
-                              ? 'bg-yellow-500/20 text-yellow-500'
-                              : paidCount > 0
-                              ? 'bg-tabie-primary/20 text-tabie-primary'
-                              : 'bg-tabie-surface text-tabie-muted'
-                          }`}>
-                            {allPaid
-                              ? '✓ All paid'
-                              : `${paidCount}/${total} paid`}
-                          </div>
-                          {claimedCount > 0 && (
-                            <span className="text-xs text-yellow-500">
-                              {claimedCount} pending
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <div className="mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${status.bg} ${status.color}`}>
+                          {status.label}
+                        </span>
+                        {claimedCount > 0 && status.label !== 'Settled' && (
+                          <span className="text-xs text-yellow-500 ml-2">
+                            {claimedCount} pending
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="text-right">
                       <div className="font-bold text-tabie-text font-mono">
                         ${getTotal(tab)}
                       </div>
-                      <div className={`text-xs ${
-                        tab.status === 'completed' || allPaid
-                          ? 'text-green-400'
-                          : isPublished
-                          ? 'text-tabie-primary'
-                          : 'text-orange-400'
-                      }`}>
-                        {tab.status === 'completed' || allPaid ? 'Settled' : isPublished ? 'Live' : 'Draft'}
+                      <div className={`text-xs ${status.color}`}>
+                        {status.label}
                       </div>
                     </div>
 
@@ -223,15 +245,13 @@ export default function Home() {
                   </button>
 
                   <button
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.stopPropagation()
-                      if (confirm('Delete this tab?')) {
-                        await deleteTab(tab.id)
-                      }
+                      setDeleteConfirm(tab.id)
                     }}
-                    className="p-2 text-tabie-muted hover:text-red-400 transition-colors focus-ring rounded-lg"
+                    className="p-3 ml-1 text-tabie-muted hover:text-red-400 transition-colors focus-ring rounded-lg"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               )
@@ -249,6 +269,35 @@ export default function Home() {
           <Camera className="w-6 h-6 text-white" />
         </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center p-4">
+          <div className="bg-tabie-surface rounded-2xl w-full max-w-[430px] p-6 mb-4">
+            <h3 className="text-lg font-semibold text-tabie-text mb-2">Delete Tab?</h3>
+            <p className="text-tabie-muted text-sm mb-6">
+              This will permanently delete this tab and all its data. This can't be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await deleteTab(deleteConfirm)
+                  setDeleteConfirm(null)
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

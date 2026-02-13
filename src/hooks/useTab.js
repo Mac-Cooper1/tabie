@@ -126,11 +126,12 @@ export function useTab(tabId) {
     const updatedItems = tab.items.map(item => {
       if (item.id !== itemId) return item
 
-      // Add all people to this item
+      // Add all people to this item, each gets an equal fraction
       const allPeopleIds = tab.people.map(p => p.id)
+      const share = 1 / allPeopleIds.length
       const newAssignments = {}
       allPeopleIds.forEach(id => {
-        newAssignments[id] = 1
+        newAssignments[id] = share
       })
 
       return {
@@ -228,7 +229,7 @@ export function useTab(tabId) {
     if (tab.splitTaxTipMethod === 'equal' && tab.people.length > 0) {
       taxTipShare = (tab.tax + tab.tip) / tab.people.length
     } else if (tab.subtotal > 0) {
-      const proportion = itemsTotal / tab.subtotal
+      const proportion = Math.min(itemsTotal / tab.subtotal, 1.0)
       taxTipShare = (tab.tax + tab.tip) * proportion
     }
 

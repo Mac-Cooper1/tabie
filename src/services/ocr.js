@@ -9,7 +9,7 @@
  */
 
 const MINDEE_API_URL = 'https://api-v2.mindee.net/v2/inferences'
-const MODEL_ID = '8502f18f-4fe7-4f1b-b1eb-a93ffe0fb743' // Mindee receipt model
+const MODEL_ID = import.meta.env.VITE_MINDEE_MODEL_ID || '8502f18f-4fe7-4f1b-b1eb-a93ffe0fb743'
 
 // Get API key from localStorage or env
 const getApiKey = () => {

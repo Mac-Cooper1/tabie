@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
+import { useParticipantId } from '../hooks/useParticipantId'
 import { useAuthStore } from '../stores/authStore'
 import { claimPayment } from '../services/firestore'
 import {
@@ -38,21 +39,14 @@ export default function Checkout() {
   const { tab, loading, error, getPersonTotal } = useTab(tabId)
   const { user } = useAuthStore()
 
-  // Get current participant from localStorage
-  const participantId = localStorage.getItem(`tabie_participant_${tabId}`)
+  // Resolve participant identity (admin auto-recognition + localStorage)
+  const participantId = useParticipantId(tabId, tab, loading)
 
   // Payment state
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-
-  // Redirect if not joined
-  useEffect(() => {
-    if (!loading && !participantId) {
-      navigate(`/join/${tabId}`, { replace: true })
-    }
-  }, [loading, participantId, tabId, navigate])
 
   if (loading) {
     return (
@@ -132,7 +126,7 @@ export default function Checkout() {
     myTaxShare = (tab.tax || 0) / tab.people.length
     myTipShare = (tab.tip || 0) / tab.people.length
   } else if (tab.subtotal > 0) {
-    const proportion = mySubtotal / tab.subtotal
+    const proportion = Math.min(mySubtotal / tab.subtotal, 1.0)
     myTaxShare = (tab.tax || 0) * proportion
     myTipShare = (tab.tip || 0) * proportion
   }

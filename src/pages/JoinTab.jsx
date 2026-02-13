@@ -1,34 +1,36 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
-import { addParticipant } from '../services/firestore'
-import { Receipt, Users, Loader2, AlertCircle, LogIn } from 'lucide-react'
-
-const COLORS = [
-  { bg: 'chip-red', color: '#ef4444' },
-  { bg: 'chip-blue', color: '#3b82f6' },
-  { bg: 'chip-green', color: '#22c55e' },
-  { bg: 'chip-purple', color: '#a855f7' },
-  { bg: 'chip-orange', color: '#f97316' },
-  { bg: 'chip-pink', color: '#ec4899' },
-  { bg: 'chip-cyan', color: '#06b6d4' },
-  { bg: 'chip-yellow', color: '#eab308' },
-]
-
-const generateId = () => Math.random().toString(36).substring(2, 15)
+import { useAuthStore } from '../stores/authStore'
+import { updateTab } from '../services/firestore'
+import { Receipt, Users, Loader2, AlertCircle, Check } from 'lucide-react'
 
 export default function JoinTab() {
   const { tabId } = useParams()
   const navigate = useNavigate()
   const { tab, loading, error } = useTab(tabId)
-  const [name, setName] = useState('')
+  const { user } = useAuthStore()
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState(null)
+  const [selectedId, setSelectedId] = useState(null)
 
   // Check if user already joined (stored in localStorage)
   const [participantId, setParticipantId] = useState(() => {
     return localStorage.getItem(`tabie_participant_${tabId}`)
   })
+
+  // If authenticated user is the tab admin, redirect directly to select page
+  useEffect(() => {
+    if (!tab || loading) return
+
+    if (user?.id && user.id === tab.createdBy && tab.people?.length > 0) {
+      const adminPerson = tab.people.find(p => p.isAdmin) || tab.people[0]
+      if (adminPerson) {
+        localStorage.setItem(`tabie_participant_${tabId}`, adminPerson.id)
+        navigate(`/tab/${tabId}/select`, { replace: true })
+      }
+    }
+  }, [tab, loading, user, tabId, navigate])
 
   // If already joined, redirect to item selection
   useEffect(() => {
@@ -40,41 +42,33 @@ export default function JoinTab() {
     }
   }, [participantId, tab, tabId, navigate])
 
-  const handleJoin = async (e) => {
-    e.preventDefault()
+  const handleClaimIdentity = async (person) => {
+    if (person.claimedAt) return // Already claimed by someone else
 
-    if (!name.trim()) {
-      setJoinError('Please enter your name')
-      return
-    }
-
+    setSelectedId(person.id)
     setJoining(true)
     setJoinError(null)
 
     try {
-      const colorIndex = tab.people?.length || 0
-      const colorData = COLORS[colorIndex % COLORS.length]
+      // Update the person's claimedAt in Firestore
+      const updatedPeople = tab.people.map(p =>
+        p.id === person.id
+          ? { ...p, claimedAt: new Date().toISOString() }
+          : p
+      )
 
-      const newParticipant = {
-        id: generateId(),
-        name: name.trim(),
-        ...colorData,
-        isAdmin: false,
-        paid: false,
-        joinedAt: new Date().toISOString()
-      }
-
-      await addParticipant(tabId, newParticipant)
+      await updateTab(tabId, { people: updatedPeople })
 
       // Store participant ID locally
-      localStorage.setItem(`tabie_participant_${tabId}`, newParticipant.id)
-      setParticipantId(newParticipant.id)
+      localStorage.setItem(`tabie_participant_${tabId}`, person.id)
+      setParticipantId(person.id)
 
       // Navigate to item selection
       navigate(`/tab/${tabId}/select`)
     } catch (err) {
-      console.error('Error joining tab:', err)
+      console.error('Error claiming identity:', err)
       setJoinError('Failed to join. Please try again.')
+      setSelectedId(null)
     } finally {
       setJoining(false)
     }
@@ -105,11 +99,14 @@ export default function JoinTab() {
           </div>
         </div>
 
-        {/* Skeleton Join Form */}
+        {/* Skeleton Name List */}
         <div className="card">
           <div className="skeleton-text w-48 mb-4 h-5" />
-          <div className="skeleton h-12 mb-4" />
-          <div className="skeleton h-12" />
+          <div className="space-y-3">
+            <div className="skeleton h-14" />
+            <div className="skeleton h-14" />
+            <div className="skeleton h-14" />
+          </div>
         </div>
       </div>
     )
@@ -149,6 +146,8 @@ export default function JoinTab() {
     )
   }
 
+  const availablePeople = tab.people?.filter(p => !p.isAdmin) || []
+
   return (
     <div className="min-h-screen bg-tabie-bg px-6 py-8">
       {/* Header */}
@@ -178,81 +177,72 @@ export default function JoinTab() {
             </p>
           </div>
         </div>
-
-        {tab.people?.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-tabie-border">
-            <div className="flex items-center gap-2 text-sm text-tabie-muted mb-2">
-              <Users className="w-4 h-4" />
-              <span>{tab.people.length} already joined</span>
-            </div>
-            <div className="flex -space-x-2">
-              {tab.people.slice(0, 6).map((person) => (
-                <div
-                  key={person.id}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-tabie-bg"
-                  style={{ backgroundColor: person.color + '30', color: person.color }}
-                  title={person.name}
-                >
-                  {person.name[0]}
-                </div>
-              ))}
-              {tab.people.length > 6 && (
-                <div className="w-8 h-8 rounded-full bg-tabie-surface flex items-center justify-center text-xs font-medium border-2 border-tabie-bg text-tabie-muted">
-                  +{tab.people.length - 6}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Join form */}
+      {/* Name selection */}
       <div className="card">
-        <h3 className="font-semibold text-tabie-text mb-4">Enter your name to join</h3>
+        <h3 className="font-semibold text-tabie-text mb-1">Who are you?</h3>
+        <p className="text-sm text-tabie-muted mb-4">Select your name to join the tab</p>
 
-        <form onSubmit={handleJoin} className="space-y-4">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            className="input-field w-full"
-            autoFocus
-            disabled={joining}
-          />
+        {availablePeople.length === 0 ? (
+          <div className="text-center py-6">
+            <Users className="w-8 h-8 text-tabie-muted mx-auto mb-2" />
+            <p className="text-tabie-muted text-sm">No names have been added yet.</p>
+            <p className="text-tabie-muted text-xs mt-1">Ask the tab admin to add you.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {availablePeople.map((person) => {
+              const isClaimed = !!person.claimedAt
+              const isSelecting = selectedId === person.id && joining
 
-          {joinError && (
-            <p className="text-red-400 text-sm">{joinError}</p>
-          )}
+              return (
+                <button
+                  key={person.id}
+                  onClick={() => handleClaimIdentity(person)}
+                  disabled={isClaimed || joining}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                    isClaimed
+                      ? 'border-tabie-border bg-tabie-surface/50 opacity-50 cursor-not-allowed'
+                      : selectedId === person.id
+                        ? 'border-tabie-primary bg-tabie-primary/10'
+                        : 'border-tabie-border bg-tabie-surface hover:border-tabie-primary/50 active:scale-[0.98]'
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+                    style={{ backgroundColor: person.color + '30', color: person.color }}
+                  >
+                    {person.name[0]}
+                  </div>
 
-          <button
-            type="submit"
-            disabled={joining}
-            className="w-full btn-primary flex items-center justify-center gap-2"
-          >
-            {joining ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Joining...
-              </>
-            ) : (
-              <>
-                <LogIn className="w-4 h-4" />
-                Continue as Guest
-              </>
-            )}
-          </button>
-        </form>
+                  {/* Name */}
+                  <span className={`font-medium flex-1 text-left ${
+                    isClaimed ? 'text-tabie-muted line-through' : 'text-tabie-text'
+                  }`}>
+                    {person.name}
+                  </span>
+
+                  {/* Status indicator */}
+                  {isSelecting ? (
+                    <Loader2 className="w-5 h-5 text-tabie-primary animate-spin shrink-0" />
+                  ) : isClaimed ? (
+                    <Check className="w-5 h-5 text-tabie-muted shrink-0" />
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {joinError && (
+          <p className="text-red-400 text-sm mt-3">{joinError}</p>
+        )}
 
         <div className="mt-4 pt-4 border-t border-tabie-border text-center">
           <p className="text-xs text-tabie-muted">
-            Have an account?{' '}
-            <button
-              onClick={() => navigate('/auth', { state: { returnTo: `/join/${tabId}` } })}
-              className="text-tabie-primary hover:underline focus-ring rounded"
-            >
-              Sign in
-            </button>
+            Don't see your name? Ask the tab admin to add you.
           </p>
         </div>
       </div>

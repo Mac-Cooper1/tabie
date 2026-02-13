@@ -7,7 +7,6 @@ import {
   Users,
   Plus,
   Trash2,
-  Phone,
   Percent,
   DollarSign,
   Share2,
@@ -34,7 +33,6 @@ export default function InvitePeople() {
   } = useBillStore()
 
   const [newPersonName, setNewPersonName] = useState('')
-  const [newPersonPhone, setNewPersonPhone] = useState('')
   const [showAddPerson, setShowAddPerson] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [shareLink, setShareLink] = useState(null)
@@ -59,7 +57,7 @@ export default function InvitePeople() {
       const alreadyAdded = currentTab.people?.some(p => p.name === userName)
 
       if (!alreadyAdded && (!currentTab.people || currentTab.people.length === 0)) {
-        await addPerson(userName, user.phone || null)
+        await addPerson(userName)
       }
 
       // Mark that we've handled this tab
@@ -87,9 +85,8 @@ export default function InvitePeople() {
   const handleAddPerson = async (e) => {
     e.preventDefault()
     if (newPersonName.trim()) {
-      await addPerson(newPersonName.trim(), newPersonPhone.trim() || null)
+      await addPerson(newPersonName.trim())
       setNewPersonName('')
-      setNewPersonPhone('')
       setShowAddPerson(false)
     }
   }
@@ -236,9 +233,6 @@ export default function InvitePeople() {
                     {person.name}
                     {index === 0 && <span className="text-xs text-tabie-primary ml-2">(You)</span>}
                   </p>
-                  {person.phone && (
-                    <p className="text-sm text-tabie-muted">{person.phone}</p>
-                  )}
                 </div>
                 {index > 0 && (
                   <button
@@ -262,16 +256,6 @@ export default function InvitePeople() {
                   className="input-field w-full"
                   autoFocus
                 />
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tabie-muted" />
-                  <input
-                    type="tel"
-                    value={newPersonPhone}
-                    onChange={(e) => setNewPersonPhone(e.target.value)}
-                    placeholder="Phone number (optional)"
-                    className="input-field w-full pl-10"
-                  />
-                </div>
                 <div className="flex gap-2">
                   <button type="submit" className="flex-1 btn-primary">Add</button>
                   <button
@@ -279,7 +263,6 @@ export default function InvitePeople() {
                     onClick={() => {
                       setShowAddPerson(false)
                       setNewPersonName('')
-                      setNewPersonPhone('')
                     }}
                     className="btn-secondary px-4"
                   >

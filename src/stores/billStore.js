@@ -259,7 +259,7 @@ export const useBillStore = create((set, get) => ({
   },
 
   // Add person to tab - writes to Firestore
-  addPerson: async (name, phone = null) => {
+  addPerson: async (name) => {
     const tab = get().currentTab
     if (!tab) return null
 
@@ -269,7 +269,6 @@ export const useBillStore = create((set, get) => ({
     const newPerson = {
       id: generateId(),
       name,
-      phone,
       ...colorData,
       paid: false,
       paymentStatus: 'pending', // pending, claimed, confirmed
@@ -420,7 +419,7 @@ export const useBillStore = create((set, get) => ({
     if (tab.splitTaxTipMethod === 'equal' && tab.people?.length > 0) {
       taxTipShare = ((tab.tax || 0) + (tab.tip || 0)) / tab.people.length
     } else if (tab.subtotal > 0) {
-      const proportion = itemsTotal / tab.subtotal
+      const proportion = Math.min(itemsTotal / tab.subtotal, 1.0)
       taxTipShare = ((tab.tax || 0) + (tab.tip || 0)) * proportion
     }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTab } from '../hooks/useTab'
+import { useParticipantId } from '../hooks/useParticipantId'
 import { useAuthStore } from '../stores/authStore'
 import { confirmPayment, rejectPayment, updateTab, addParticipant, removeParticipant } from '../services/firestore'
 import {
@@ -11,6 +12,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   DollarSign,
   Share2,
   Copy,
@@ -19,7 +21,6 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
-  MessageSquare,
   ArrowLeft,
   Crown,
   Archive,
@@ -53,25 +54,16 @@ export default function GuestItemSelection() {
   const [showPaymentPanel, setShowPaymentPanel] = useState(false)
   const [copied, setCopied] = useState(false)
   const [confirmingPayment, setConfirmingPayment] = useState(null)
-  const [sendingReminder, setSendingReminder] = useState(null)
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [closingTab, setClosingTab] = useState(false)
   const [assigningItem, setAssigningItem] = useState(null) // For admin item assignment
   const [showEditPeopleModal, setShowEditPeopleModal] = useState(false)
   const [newPersonName, setNewPersonName] = useState('')
-  const [newPersonPhone, setNewPersonPhone] = useState('')
   const [addingPerson, setAddingPerson] = useState(false)
   const [removingPerson, setRemovingPerson] = useState(null)
 
-  // Get current participant from localStorage
-  const participantId = localStorage.getItem(`tabie_participant_${tabId}`)
-
-  // Redirect if not joined
-  useEffect(() => {
-    if (!loading && !participantId) {
-      navigate(`/join/${tabId}`, { replace: true })
-    }
-  }, [loading, participantId, tabId, navigate])
+  // Resolve participant identity (admin auto-recognition + localStorage)
+  const participantId = useParticipantId(tabId, tab, loading)
 
   if (loading) {
     return (
@@ -172,41 +164,6 @@ export default function GuestItemSelection() {
     }
   }
 
-  // Handle sending a reminder
-  const handleSendReminder = async (person) => {
-    if (!person.phone) {
-      alert(`${person.name} doesn't have a phone number on file.`)
-      return
-    }
-    setSendingReminder(person.id)
-    try {
-      const personTotal = getPersonTotal(person.id)
-      const response = await fetch('/api/twilio/send-payment-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: person.phone,
-          name: person.name,
-          amount: personTotal,
-          restaurant: tab.restaurantName || 'your meal',
-          tabId,
-          participantId: person.id,
-          organizerName: tab.adminPaymentAccounts?.adminName || tab.people?.[0]?.name || 'the organizer'
-        })
-      })
-      if (response.ok) {
-        alert(`Reminder sent to ${person.name}!`)
-      } else {
-        throw new Error('Failed to send')
-      }
-    } catch (err) {
-      console.error('Error sending reminder:', err)
-      alert('Failed to send reminder. Please try again.')
-    } finally {
-      setSendingReminder(null)
-    }
-  }
-
   // Get payment status display info
   const getPaymentStatusInfo = (person) => {
     const status = person.paymentStatus || 'pending'
@@ -301,7 +258,6 @@ export default function GuestItemSelection() {
       const newPerson = {
         id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         name: newPersonName.trim(),
-        phone: newPersonPhone.trim() || null,
         color: generateColor(),
         isAdmin: false,
         paymentStatus: 'pending',
@@ -309,7 +265,6 @@ export default function GuestItemSelection() {
       }
       await addParticipant(tabId, newPerson)
       setNewPersonName('')
-      setNewPersonPhone('')
     } catch (err) {
       console.error('Error adding person:', err)
       alert('Failed to add person. Please try again.')
@@ -384,7 +339,7 @@ export default function GuestItemSelection() {
   }
 
   return (
-    <div className="min-h-screen bg-tabie-bg pb-40">
+    <div className="min-h-screen bg-tabie-bg pb-52">
       {/* Header */}
       <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         {/* Back button for logged-in users */}
@@ -419,27 +374,24 @@ export default function GuestItemSelection() {
               {isAdmin ? 'Manage your tab' : `Hi ${currentParticipant?.name}! Select what you had`}
             </p>
           </div>
-          <button
-            onClick={() => setShowSharePanel(!showSharePanel)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-tabie-surface border border-tabie-border text-sm focus-ring"
-          >
-            <Users className="w-5 h-5 text-tabie-muted" />
-            <span className="text-tabie-text">{tab.people?.length || 0}</span>
-          </button>
+          {!isAdmin && (
+            <button
+              onClick={() => setShowSharePanel(!showSharePanel)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-tabie-surface border border-tabie-border text-sm focus-ring"
+            >
+              <Users className="w-5 h-5 text-tabie-muted" />
+              <span className="text-tabie-text">{tab.people?.length || 0}</span>
+            </button>
+          )}
         </div>
 
         {/* Unassigned items warning (admin only) */}
         {isAdmin && unassignedCount > 0 && !isTabClosed && (
-          <div className="mt-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-yellow-500">
-                {unassignedCount} item{unassignedCount > 1 ? 's' : ''} unassigned
-              </p>
-              <p className="text-xs text-yellow-500/70">
-                Tap items below to assign them to people (or let them choose themselves)
-              </p>
-            </div>
+          <div className="mt-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+            <p className="text-sm font-medium text-yellow-500">
+              {unassignedCount} item{unassignedCount > 1 ? 's' : ''} unassigned
+            </p>
           </div>
         )}
 
@@ -518,202 +470,41 @@ export default function GuestItemSelection() {
           </div>
         )}
 
-        {/* Admin Payment Tracking Panel */}
+        {/* Admin Payment Status Summary (compact, stays in header) */}
         {isAdmin && (
-          <div className="mt-4">
-            <button
-              onClick={() => setShowPaymentPanel(!showPaymentPanel)}
-              className={`w-full p-3 rounded-xl border transition-all flex items-center justify-between ${
-                claimedCount > 0
-                  ? 'bg-yellow-500/10 border-yellow-500/30'
-                  : confirmedCount === totalPeople
-                    ? 'bg-green-500/10 border-green-500/30'
-                    : 'bg-tabie-card border-tabie-border'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  claimedCount > 0 ? 'bg-yellow-500/20' : confirmedCount === totalPeople ? 'bg-green-500/20' : 'bg-tabie-surface'
-                }`}>
-                  {claimedCount > 0 ? (
-                    <Clock className="w-5 h-5 text-yellow-500" />
-                  ) : confirmedCount === totalPeople ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                  ) : (
-                    <DollarSign className="w-5 h-5 text-tabie-muted" />
-                  )}
-                </div>
-                <div className="text-left">
-                  <p className="font-medium text-tabie-text">
-                    {confirmedCount === totalPeople
-                      ? 'All payments confirmed!'
-                      : `${confirmedCount}/${totalPeople} paid`}
-                  </p>
-                  {claimedCount > 0 && (
-                    <p className="text-xs text-yellow-500">
-                      {claimedCount} awaiting your confirmation
-                    </p>
-                  )}
-                </div>
-              </div>
-              {showPaymentPanel ? (
-                <ChevronUp className="w-5 h-5 text-tabie-muted" />
+          <button
+            onClick={() => setShowPaymentPanel(true)}
+            className={`mt-2 w-full px-3 py-2 rounded-xl border transition-all flex items-center justify-between ${
+              claimedCount > 0
+                ? 'bg-yellow-500/10 border-yellow-500/30'
+                : confirmedCount === totalPeople
+                  ? 'bg-green-500/10 border-green-500/30'
+                  : 'bg-tabie-card border-tabie-border'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {claimedCount > 0 ? (
+                <Clock className="w-4 h-4 text-yellow-500" />
+              ) : confirmedCount === totalPeople ? (
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
               ) : (
-                <ChevronDown className="w-5 h-5 text-tabie-muted" />
+                <DollarSign className="w-4 h-4 text-tabie-muted" />
               )}
-            </button>
-
-            {showPaymentPanel && (
-              <div className="mt-2 p-4 bg-tabie-card rounded-xl border border-tabie-border space-y-3">
-                <p className="text-xs text-tabie-muted font-medium">Payment Status</p>
-
-                {tab.people?.map((person, index) => {
-                  const statusInfo = getPaymentStatusInfo(person)
-                  const personTotal = getPersonTotal(person.id)
-                  const isCurrentUser = person.id === participantId
-                  const StatusIcon = statusInfo.icon
-
-                  return (
-                    <div
-                      key={person.id}
-                      className={`p-3 rounded-lg ${statusInfo.bg}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                            style={{ backgroundColor: person.color + '30', color: person.color }}
-                          >
-                            {person.name[0]}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-tabie-text">
-                              {person.name}
-                              {index === 0 && <span className="text-xs text-tabie-muted ml-1">(you)</span>}
-                            </p>
-                            <p className="text-xs text-tabie-muted font-mono">${personTotal.toFixed(2)}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {StatusIcon && (
-                            <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
-                          )}
-                          <span className={`text-xs font-medium ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Show payment method if claimed or confirmed */}
-                      {person.paidVia && (
-                        <p className="text-xs text-tabie-muted mt-1 ml-10">
-                          via {person.paidVia.charAt(0).toUpperCase() + person.paidVia.slice(1)}
-                          {person.paidAt && ` • ${new Date(person.paidAt).toLocaleDateString()}`}
-                        </p>
-                      )}
-
-                      {/* Action buttons for admin */}
-                      {!isCurrentUser && (
-                        <div className="mt-2 ml-10 flex flex-wrap gap-2">
-                          {person.paymentStatus === 'claimed' && (
-                            <>
-                              <button
-                                onClick={() => handleConfirmPayment(person.id)}
-                                disabled={confirmingPayment === person.id}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-medium disabled:opacity-50"
-                              >
-                                {confirmingPayment === person.id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Check className="w-3 h-3" />
-                                )}
-                                Confirm
-                              </button>
-                              <button
-                                onClick={() => handleRejectPayment(person.id)}
-                                disabled={confirmingPayment === person.id}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium disabled:opacity-50"
-                              >
-                                <XCircle className="w-3 h-3" />
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {(!person.paymentStatus || person.paymentStatus === 'pending') && (
-                            <>
-                              <button
-                                onClick={() => handleMarkAsPaid(person.id)}
-                                disabled={confirmingPayment === person.id}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-medium disabled:opacity-50"
-                              >
-                                {confirmingPayment === person.id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <CheckCircle2 className="w-3 h-3" />
-                                )}
-                                Mark Paid
-                              </button>
-                              <button
-                                onClick={() => handleSendReminder(person)}
-                                disabled={sendingReminder === person.id}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-primary/20 text-tabie-primary text-xs font-medium disabled:opacity-50"
-                              >
-                                {sendingReminder === person.id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <MessageSquare className="w-3 h-3" />
-                                )}
-                                Nudge
-                              </button>
-                            </>
-                          )}
-                          {person.paymentStatus === 'confirmed' && (
-                            <button
-                              onClick={() => handleMarkAsUnpaid(person.id)}
-                              disabled={confirmingPayment === person.id}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-surface text-tabie-muted text-xs font-medium hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50"
-                            >
-                              {confirmingPayment === person.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <XCircle className="w-3 h-3" />
-                              )}
-                              Mark Unpaid
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+              <span className="font-medium text-sm text-tabie-text">
+                {confirmedCount === totalPeople
+                  ? 'All paid!'
+                  : `${confirmedCount}/${totalPeople} paid`}
+              </span>
+              {claimedCount > 0 && (
+                <span className="text-xs text-yellow-500">
+                  • {claimedCount} pending
+                </span>
+              )}
+            </div>
+            <ChevronRight className="w-4 h-4 text-tabie-muted" />
+          </button>
         )}
 
-        {/* Close/Reopen Tab Section (Admin only) */}
-        {isAdmin && (
-          <div className="mt-4">
-            {isTabClosed ? (
-              <button
-                onClick={handleReopenTab}
-                className="w-full p-3 rounded-xl border border-tabie-border bg-tabie-card flex items-center justify-center gap-2 text-tabie-primary hover:bg-tabie-primary/10 transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span className="font-medium">Reopen Tab</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowCloseModal(true)}
-                className="w-full p-3 rounded-xl border border-tabie-border bg-tabie-card flex items-center justify-center gap-2 text-tabie-muted hover:text-red-400 hover:border-red-500/30 transition-colors"
-              >
-                <Archive className="w-4 h-4" />
-                <span className="font-medium">Close Tab</span>
-              </button>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Close Tab Confirmation Modal */}
@@ -800,13 +591,6 @@ export default function GuestItemSelection() {
                   onChange={(e) => setNewPersonName(e.target.value)}
                   className="w-full bg-tabie-bg rounded-lg px-3 py-2 text-sm text-tabie-text placeholder-tabie-muted border border-tabie-border focus:outline-none focus:ring-2 focus:ring-tabie-primary/50"
                 />
-                <input
-                  type="tel"
-                  placeholder="Phone (optional)"
-                  value={newPersonPhone}
-                  onChange={(e) => setNewPersonPhone(e.target.value)}
-                  className="w-full bg-tabie-bg rounded-lg px-3 py-2 text-sm text-tabie-text placeholder-tabie-muted border border-tabie-border focus:outline-none focus:ring-2 focus:ring-tabie-primary/50"
-                />
                 <button
                   type="submit"
                   disabled={!newPersonName.trim() || addingPerson}
@@ -889,6 +673,144 @@ export default function GuestItemSelection() {
         </div>
       )}
 
+      {/* Payment Status Modal (Admin only) */}
+      {showPaymentPanel && isAdmin && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center p-4">
+          <div className="bg-tabie-card border border-tabie-border rounded-2xl w-full max-w-[430px] max-h-[75vh] overflow-hidden flex flex-col mb-4">
+            <div className="flex items-center justify-between p-4 pb-2">
+              <div>
+                <h3 className="text-lg font-bold text-tabie-text">Payments</h3>
+                <p className="text-xs text-tabie-muted">Owed based on items each person selected</p>
+              </div>
+              <button
+                onClick={() => setShowPaymentPanel(false)}
+                className="p-1 rounded-lg hover:bg-tabie-surface text-tabie-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 pt-2 space-y-2">
+              {tab.people?.map((person, index) => {
+                const statusInfo = getPaymentStatusInfo(person)
+                const personTotal = getPersonTotal(person.id)
+                const isCurrentUser = person.id === participantId
+                const StatusIcon = statusInfo.icon
+
+                return (
+                  <div
+                    key={person.id}
+                    className={`p-3 rounded-lg ${statusInfo.bg}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ backgroundColor: person.color + '30', color: person.color }}
+                        >
+                          {person.name[0]}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-tabie-text">
+                            {person.name}
+                            {isCurrentUser && <span className="text-xs text-tabie-muted ml-1">(you)</span>}
+                          </p>
+                          <p className="text-xs text-tabie-muted font-mono">${personTotal.toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {StatusIcon && (
+                          <StatusIcon className={`w-4 h-4 ${statusInfo.color}`} />
+                        )}
+                        <span className={`text-xs font-medium ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Show payment method if claimed or confirmed */}
+                    {person.paidVia && (
+                      <p className="text-xs text-tabie-muted mt-1 ml-10">
+                        via {person.paidVia.charAt(0).toUpperCase() + person.paidVia.slice(1)}
+                        {person.paidAt && ` • ${new Date(person.paidAt).toLocaleDateString()}`}
+                      </p>
+                    )}
+
+                    {/* Action buttons for admin */}
+                    {!isCurrentUser && (
+                      <div className="mt-2 ml-10 flex flex-wrap gap-2">
+                        {person.paymentStatus === 'claimed' && (
+                          <>
+                            <button
+                              onClick={() => handleConfirmPayment(person.id)}
+                              disabled={confirmingPayment === person.id}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-medium disabled:opacity-50"
+                            >
+                              {confirmingPayment === person.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => handleRejectPayment(person.id)}
+                              disabled={confirmingPayment === person.id}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-xs font-medium disabled:opacity-50"
+                            >
+                              <XCircle className="w-3 h-3" />
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {(!person.paymentStatus || person.paymentStatus === 'pending') && (
+                          <button
+                            onClick={() => handleMarkAsPaid(person.id)}
+                            disabled={confirmingPayment === person.id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-500 text-white text-xs font-medium disabled:opacity-50"
+                          >
+                            {confirmingPayment === person.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-3 h-3" />
+                            )}
+                            Mark Paid
+                          </button>
+                        )}
+                        {person.paymentStatus === 'confirmed' && (
+                          <button
+                            onClick={() => handleMarkAsUnpaid(person.id)}
+                            disabled={confirmingPayment === person.id}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-tabie-surface text-tabie-muted text-xs font-medium hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50"
+                          >
+                            {confirmingPayment === person.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <XCircle className="w-3 h-3" />
+                            )}
+                            Mark Unpaid
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="p-4 pt-2">
+              <button
+                onClick={() => setShowPaymentPanel(false)}
+                className="w-full btn-secondary"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Items list */}
       <div className="px-6 py-4 space-y-3">
         <p className="text-sm text-tabie-muted mb-2">
@@ -965,7 +887,7 @@ export default function GuestItemSelection() {
 
                   {/* Item info */}
                   <div className="flex-1">
-                    <p className="font-medium text-tabie-text">
+                    <p className={`font-medium text-tabie-text ${!isExpanded ? 'line-clamp-1' : ''}`}>
                       {item.quantity > 1 && (
                         <span className="text-tabie-muted">{item.quantity}x </span>
                       )}
@@ -1051,8 +973,8 @@ export default function GuestItemSelection() {
                             Just me
                           </button>
 
-                          {/* Dynamic fraction buttons from 1/2 up to 1/n (number of people) */}
-                          {Array.from({ length: Math.max(1, (tab.people?.length || 2) - 1) }, (_, i) => i + 2).map(divisor => {
+                          {/* Dynamic fraction buttons from 1/2 up to 1/(n-1) — last fraction is covered by "Everyone" */}
+                          {Array.from({ length: Math.max(0, (tab.people?.length || 2) - 2) }, (_, i) => i + 2).map(divisor => {
                             const share = 1 / divisor
                             const isSelected = isMyItem && Math.abs(myQty - share) < 0.01 && !isFamilySplit
                             return (
@@ -1251,7 +1173,7 @@ export default function GuestItemSelection() {
                     </div>
                     <div className="flex justify-between text-tabie-muted">
                       <span>Your share</span>
-                      <span className="font-mono">-${adminTotal.toFixed(2)}</span>
+                      <span className="font-mono">-${Math.abs(adminTotal).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-green-500">
                       <span>Collected ({paidGuestsCount}/{guestsCount})</span>
@@ -1263,23 +1185,46 @@ export default function GuestItemSelection() {
                     <div>
                       <p className="text-sm text-tabie-muted">Still Owed</p>
                       <p className={`text-2xl font-bold font-mono ${amountPending > 0 ? 'text-yellow-500' : 'text-green-500'}`}>
-                        ${amountPending.toFixed(2)}
+                        ${Math.max(0, amountPending).toFixed(2)}
                       </p>
                     </div>
-                    {amountPending > 0 ? (
-                      <button
-                        onClick={() => setShowPaymentPanel(true)}
-                        className="btn-secondary flex items-center gap-2"
-                      >
-                        <Users className="w-4 h-4" />
-                        View Payments
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-2 text-green-500">
-                        <CheckCircle2 className="w-5 h-5" />
-                        <span className="font-medium">All Settled!</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isTabClosed ? (
+                        <button
+                          onClick={handleReopenTab}
+                          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-tabie-primary text-white text-sm font-medium hover:bg-tabie-primary/90 transition-colors"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          Reopen
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setShowCloseModal(true)}
+                          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                            confirmedCount === totalPeople && totalPeople > 0
+                              ? 'bg-green-500 text-white hover:bg-green-600'
+                              : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          }`}
+                        >
+                          <Archive className="w-4 h-4" />
+                          Close
+                        </button>
+                      )}
+                      {amountPending > 0 ? (
+                        <button
+                          onClick={() => setShowPaymentPanel(true)}
+                          className="btn-secondary flex items-center gap-2"
+                        >
+                          <Users className="w-4 h-4" />
+                          Payments
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-green-500">
+                          <CheckCircle2 className="w-5 h-5" />
+                          <span className="font-medium text-sm">Settled!</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )
