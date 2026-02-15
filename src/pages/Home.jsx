@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useBillStore } from '../stores/billStore'
+import { updateTab as updateFirestoreTab } from '../services/firestore'
 import {
   Camera,
   Plus,
   Receipt,
   Clock,
   CheckCircle,
-  ChevronRight,
   Settings,
+  Archive,
   Trash2,
   Star
 } from 'lucide-react'
@@ -21,9 +22,10 @@ export default function Home() {
 
   const [activeFilter, setActiveFilter] = useState('active')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [closeConfirm, setCloseConfirm] = useState(null)
 
   const activeTabs = tabs.filter(t => t.status === 'active' || t.status === 'pending' || t.status === 'open' || t.status === 'setup')
-  const completedTabs = tabs.filter(t => t.status === 'completed')
+  const completedTabs = tabs.filter(t => t.status === 'completed' || t.status === 'closed')
 
   // Helper to get payment progress
   const getPaymentProgress = (tab) => {
@@ -110,7 +112,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-tabie-bg pb-24">
+    <div className="min-h-screen bg-tabie-bg pb-24 overflow-x-hidden">
       {/* Header */}
       <div className="sticky top-0 bg-tabie-bg/95 backdrop-blur-lg z-20 px-6 pt-8 pb-4 border-b border-tabie-border">
         <div className="flex items-center justify-between mb-6">
@@ -190,29 +192,19 @@ export default function Home() {
         ) : (
           <div className="space-y-3">
             {displayedTabs.map((tab) => {
-              const isPublished = !!tab.firestoreId
               const { paidCount, claimedCount, total } = getPaymentProgress(tab)
-              const allPaid = paidCount === total && total > 0
 
               const status = getTabStatus(tab)
+              const isHistory = tab.status === 'completed' || tab.status === 'closed'
 
               return (
-                <div key={tab.id} className="card flex items-center gap-4">
+                <div key={tab.id} className="card flex items-center gap-3 overflow-hidden">
                   <button
                     onClick={() => handleOpenTab(tab)}
-                    className="flex-1 flex items-center gap-4 hover:opacity-80 transition-opacity duration-200 focus-ring rounded-xl"
+                    className="flex-1 min-w-0 flex items-center gap-3 hover:opacity-80 transition-opacity duration-200 focus-ring rounded-xl"
                   >
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${status.bg} ${status.color}`}>
-                      {tab.status === 'completed' || (paidCount === total && total > 0)
-                        ? <CheckCircle className="w-6 h-6" />
-                        : isPublished
-                          ? <span className="text-lg font-bold">{(tab.restaurantName || 'T')[0]}</span>
-                          : <Receipt className="w-6 h-6" />
-                      }
-                    </div>
-
-                    <div className="flex-1 text-left">
-                      <h3 className="font-semibold text-tabie-text">
+                    <div className="flex-1 min-w-0 text-left">
+                      <h3 className="font-semibold text-tabie-text truncate">
                         {tab.restaurantName || 'New Tab'}
                       </h3>
                       <div className="flex items-center gap-2 text-sm text-tabie-muted">
@@ -220,39 +212,46 @@ export default function Home() {
                         <span>•</span>
                         <span>{total || 0} people</span>
                       </div>
-                      <div className="mt-1">
+                      <div className="mt-1 flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${status.bg} ${status.color}`}>
                           {status.label}
                         </span>
                         {claimedCount > 0 && status.label !== 'Settled' && (
-                          <span className="text-xs text-yellow-500 ml-2">
+                          <span className="text-xs text-yellow-500">
                             {claimedCount} pending
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-right flex-shrink-0">
                       <div className="font-bold text-tabie-text font-mono">
                         ${getTotal(tab)}
                       </div>
-                      <div className={`text-xs ${status.color}`}>
-                        {status.label}
-                      </div>
                     </div>
-
-                    <ChevronRight className="w-5 h-5 text-tabie-muted" />
                   </button>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setDeleteConfirm(tab.id)
-                    }}
-                    className="p-3 ml-1 text-tabie-muted hover:text-red-400 transition-colors focus-ring rounded-lg"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {isHistory ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteConfirm(tab.id)
+                      }}
+                      className="p-2 flex-shrink-0 text-tabie-muted hover:text-red-400 transition-colors focus-ring rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setCloseConfirm(tab.id)
+                      }}
+                      className="p-2 flex-shrink-0 text-tabie-muted hover:text-tabie-text transition-colors focus-ring rounded-lg"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -269,6 +268,41 @@ export default function Home() {
           <Camera className="w-6 h-6 text-white" />
         </button>
       </div>
+
+      {/* Close Tab Confirmation Modal */}
+      {closeConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center p-4">
+          <div className="bg-tabie-surface rounded-2xl w-full max-w-[430px] p-6 mb-4">
+            <h3 className="text-lg font-semibold text-tabie-text mb-2">Close Tab?</h3>
+            <p className="text-tabie-muted text-sm mb-6">
+              This will move the tab to History. You can still view it there.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCloseConfirm(null)}
+                className="flex-1 btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const tab = tabs.find(t => t.id === closeConfirm)
+                  if (tab?.firestoreId) {
+                    await updateFirestoreTab(tab.firestoreId, {
+                      status: 'completed',
+                      closedAt: new Date().toISOString()
+                    })
+                  }
+                  setCloseConfirm(null)
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-tabie-primary text-white font-medium hover:bg-tabie-primary/90 transition-colors"
+              >
+                Close Tab
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (

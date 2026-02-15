@@ -120,11 +120,12 @@ export default function GuestItemSelection() {
   const myItems = tab.items?.filter(item => item.assignedTo?.includes(participantId)) || []
   const isTabClosed = tab.status === 'closed' || tab.status === 'completed'
 
-  // Payment tracking stats (for admin)
-  const confirmedCount = tab.people?.filter(p => p.paymentStatus === 'confirmed').length || 0
-  const claimedCount = tab.people?.filter(p => p.paymentStatus === 'claimed').length || 0
-  const pendingCount = tab.people?.filter(p => !p.paymentStatus || p.paymentStatus === 'pending').length || 0
-  const totalPeople = tab.people?.length || 0
+  // Payment tracking stats (for admin) — exclude organizer (index 0) since they paid the bill
+  const guests = tab.people?.slice(1) || []
+  const confirmedCount = guests.filter(p => p.paymentStatus === 'confirmed').length
+  const claimedCount = guests.filter(p => p.paymentStatus === 'claimed').length
+  const pendingCount = guests.filter(p => !p.paymentStatus || p.paymentStatus === 'pending').length
+  const totalPeople = guests.length
 
   // Unassigned items tracking
   const unassignedItems = tab.items?.filter(item => !item.assignedTo || item.assignedTo.length === 0) || []
@@ -165,7 +166,10 @@ export default function GuestItemSelection() {
   }
 
   // Get payment status display info
-  const getPaymentStatusInfo = (person) => {
+  const getPaymentStatusInfo = (person, isOrganizer = false) => {
+    if (isOrganizer) {
+      return { label: 'Organizer', color: 'text-tabie-primary', bg: 'bg-tabie-primary/10', icon: Crown }
+    }
     const status = person.paymentStatus || 'pending'
     switch (status) {
       case 'confirmed':
@@ -611,10 +615,10 @@ export default function GuestItemSelection() {
               <p className="text-xs text-tabie-muted font-medium">
                 People on this tab ({tab.people?.length || 0})
               </p>
-              {tab.people?.map((person) => {
+              {tab.people?.map((person, index) => {
                 const isCurrentUser = person.id === participantId
                 const personTotal = getPersonTotal(person.id)
-                const statusInfo = getPaymentStatusInfo(person)
+                const statusInfo = getPaymentStatusInfo(person, index === 0)
 
                 return (
                   <div
@@ -692,7 +696,8 @@ export default function GuestItemSelection() {
 
             <div className="flex-1 overflow-y-auto p-4 pt-2 space-y-2">
               {tab.people?.map((person, index) => {
-                const statusInfo = getPaymentStatusInfo(person)
+                const isOrganizer = index === 0
+                const statusInfo = getPaymentStatusInfo(person, isOrganizer)
                 const personTotal = getPersonTotal(person.id)
                 const isCurrentUser = person.id === participantId
                 const StatusIcon = statusInfo.icon
@@ -730,15 +735,15 @@ export default function GuestItemSelection() {
                     </div>
 
                     {/* Show payment method if claimed or confirmed */}
-                    {person.paidVia && (
+                    {!isOrganizer && person.paidVia && (
                       <p className="text-xs text-tabie-muted mt-1 ml-10">
                         via {person.paidVia.charAt(0).toUpperCase() + person.paidVia.slice(1)}
                         {person.paidAt && ` • ${new Date(person.paidAt).toLocaleDateString()}`}
                       </p>
                     )}
 
-                    {/* Action buttons for admin */}
-                    {!isCurrentUser && (
+                    {/* Action buttons for admin (not shown for organizer row) */}
+                    {!isCurrentUser && !isOrganizer && (
                       <div className="mt-2 ml-10 flex flex-wrap gap-2">
                         {person.paymentStatus === 'claimed' && (
                           <>
